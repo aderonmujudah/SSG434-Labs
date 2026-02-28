@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ESP32 WebSocket Dashboard - Lab 19</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      header {
+        background: white;
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        margin-bottom: 20px;
+        text-align: center;
+      }
+
+      h1 {
+        color: #333;
+        font-size: 2em;
+        margin-bottom: 10px;
+      }
+
+      .connection-status {
+        display: inline-block;
+        padding: 8px 20px;
+        border-radius: 20px;
+        font-weight: bold;
+        font-size: 0.9em;
+        transition: all 0.3s;
+      }
+
+      .status-connected {
+        background: #4caf50;
+        color: white;
+      }
+
+      .status-disconnected {
+        background: #f44336;
+        color: white;
+      }
+
+      .status-connecting {
+        background: #ff9800;
+        color: white;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+
+      .card {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        transition: transform 0.3s;
+      }
+
+      .card:hover {
+        transform: translateY(-5px);
+      }
+
+      .card-title {
+        font-size: 1.2em;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .sensor-value {
+        font-size: 2.5em;
+        font-weight: bold;
+        color: #667eea;
+        margin: 10px 0;
+      }
+
+      .sensor-unit {
+        font-size: 0.5em;
+        color: #666;
+        margin-left: 5px;
+      }
+
+      .sensor-label {
+        color: #666;
+        font-size: 0.9em;
+      }
+
+      .sensor-status {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 0.8em;
+        font-weight: bold;
+        margin-top: 10px;
+      }
+
+      .sensor-valid {
+        background: #4caf50;
+        color: white;
+      }
+
+      .sensor-invalid {
+        background: #f44336;
+        color: white;
+      }
+
+      .chart-container {
+        position: relative;
+        height: 250px;
+        margin-top: 15px;
+      }
+
+      .led-control {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+      }
+
+      .color-slider {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      .slider-label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.9em;
+        color: #666;
+      }
+
+      input[type="range"] {
+        width: 100%;
+        height: 8px;
+        border-radius: 5px;
+        outline: none;
+        -webkit-appearance: none;
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #667eea;
+        cursor: pointer;
+      }
+
+      input[type="range"]::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #667eea;
+        cursor: pointer;
+        border: none;
+      }
+
+      #sliderR {
+        background: #ffcdd2;
+      }
+      #sliderG {
+        background: #c8e6c9;
+      }
+      #sliderB {
+        background: #bbdefb;
+      }
+
+      .led-preview {
+        width: 100%;
+        height: 80px;
+        border-radius: 10px;
+        border: 3px solid #ddd;
+        transition: background-color 0.3s;
+      }
+
+      .button {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 8px;
+        font-size: 1em;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s;
+        color: white;
+      }
+
+      .button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+      }
+
+      .button-primary {
+        background: #667eea;
+      }
+
+      .button-danger {
+        background: #f44336;
+      }
+
+      .button-success {
+        background: #4caf50;
+      }
+
+      .system-info {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 15px;
+      }
+
+      .info-item {
+        text-align: center;
+        padding: 15px;
+        background: #f5f5f5;
+        border-radius: 10px;
+      }
+
+      .info-value {
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #667eea;
+      }
+
+      .info-label {
+        font-size: 0.9em;
+        color: #666;
+        margin-top: 5px;
+      }
+
+      .log {
+        max-height: 200px;
+        overflow-y: auto;
+        background: #f5f5f5;
+        padding: 15px;
+        border-radius: 10px;
+        font-family: "Courier New", monospace;
+        font-size: 0.85em;
+      }
+
+      .log-entry {
+        margin-bottom: 5px;
+        padding: 5px;
+        border-left: 3px solid #667eea;
+        padding-left: 10px;
+      }
+
+      .log-time {
+        color: #999;
+        font-size: 0.9em;
+      }
+
+      @media (max-width: 768px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        h1 {
+          font-size: 1.5em;
+        }
+
+        .sensor-value {
+          font-size: 2em;
+        }
+      }
+
+      .icon {
+        font-size: 1.3em;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header -->
+      <header>
+        <h1>🌐 ESP32 WebSocket Dashboard</h1>
+        <div class="connection-status status-connecting" id="connectionStatus">
+          ⏳ Connecting...
+        </div>
+      </header>
+
+      <!-- Sensor Data Grid -->
+      <div class="grid">
+        <!-- DHT11 Temperature -->
+        <div class="card">
+          <div class="card-title">
+            <span class="icon">🌡️</span>
+            DHT11 Temperature
+          </div>
+          <div class="sensor-value">
+            <span id="dhtTemp">--</span><span class="sensor-unit">°C</span>
+          </div>
+          <div class="sensor-status sensor-invalid" id="dhtTempStatus">
+            Waiting...
+          </div>
+          <div class="chart-container">
+            <canvas id="chartDHTTemp"></canvas>
+          </div>
+        </div>
+
+        <!-- DHT11 Humidity -->
+        <div class="card">
+          <div class="card-title">
+            <span class="icon">💧</span>
+            DHT11 Humidity
+          </div>
+          <div class="sensor-value">
+            <span id="dhtHum">--</span><span class="sensor-unit">%</span>
+          </div>
+          <div class="sensor-status sensor-invalid" id="dhtHumStatus">
+            Waiting...
+          </div>
+          <div class="chart-container">
+            <canvas id="chartDHTHum"></canvas>
+          </div>
+        </div>
+
+        <!-- BMP180 Temperature -->
+        <div class="card">
+          <div class="card-title">
+            <span class="icon">🌡️</span>
+            BMP180 Temperature
+          </div>
+          <div class="sensor-value">
+            <span id="bmpTemp">--</span><span class="sensor-unit">°C</span>
+          </div>
+          <div class="sensor-status sensor-invalid" id="bmpTempStatus">
+            Waiting...
+          </div>
+          <div class="chart-container">
+            <canvas id="chartBMPTemp"></canvas>
+          </div>
+        </div>
+
+        <!-- BMP180 Pressure -->
+        <div class="card">
+          <div class="card-title">
+            <span class="icon">🌪️</span>
+            BMP180 Pressure
+          </div>
+          <div class="sensor-value">
+            <span id="bmpPress">--</span><span class="sensor-unit">hPa</span>
+          </div>
+          <div class="sensor-status sensor-invalid" id="bmpPressStatus">
+            Waiting...
+          </div>
+          <div class="chart-container">
+            <canvas id="chartBMPPress"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- LED Control & System Info Grid -->
+      <div class="grid">
+        <!-- RGB LED Control -->
+        <div class="card">
+          <div class="card-title">
+            <span class="icon">🌈</span>
+            RGB LED Control
+          </div>
+
+          <div class="led-preview" id="ledPreview"></div>
+
+          <div class="led-control">
+            <div class="color-slider">
+              <div class="slider-label">
+                <span>🔴 Red</span>
+                <span id="valueR">0</span>
+              </div>
+              <input type="range" min="0" max="255" value="0" id="sliderR" />
+            </div>
+
+            <div class="color-slider">
+              <div class="slider-label">
+                <span>🟢 Green</span>
+                <span id="valueG">0</span>
+              </div>
+              <input type="range" min="0" max="255" value="0" id="sliderG" />
+            </div>
+
+            <div class="color-slider">
+              <div class="slider-label">
+                <span>🔵 Blue</span>
+                <span id="valueB">0</span>
+              </div>
+              <input type="range" min="0" max="255" value="0" id="sliderB" />
+            </div>
+
+            <button class="button button-primary" onclick="sendLEDColor()">
+              ✓ Apply Color
+            </button>
+            <button class="button button-danger" onclick="turnOffLED()">
+              ✕ Turn Off
+            </button>
+
+            <div style="display: flex; gap: 10px">
+              <button
+                class="button button-success"
+                style="flex: 1"
+                onclick="setPresetColor(255, 0, 0)"
+              >
+                🔴 Red
+              </button>
+              <button
+                class="button button-success"
+                style="flex: 1"
+                onclick="setPresetColor(0, 255, 0)"
+              >
+                🟢 Green
+              </button>
+              <button
+                class="button button-success"
+                style="flex: 1"
+                onclick="setPresetColor(0, 0, 255)"
+              >
+                🔵 Blue
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- System Information -->
+        <div class="card">
+          <div class="card-title">
+            <span class="icon">⚙️</span>
+            System Information
+          </div>
+
+          <div class="system-info">
+            <div class="info-item">
+              <div class="info-value" id="uptime">0s</div>
+              <div class="info-label">Uptime</div>
+            </div>
+
+            <div class="info-item">
+              <div class="info-value" id="clients">0</div>
+              <div class="info-label">Clients</div>
+            </div>
+
+            <div class="info-item">
+              <div class="info-value" id="heap">0</div>
+              <div class="info-label">Free Heap</div>
+            </div>
+
+            <div class="info-item">
+              <div class="info-value" id="rssi">0</div>
+              <div class="info-label">WiFi RSSI</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 20px">
+            <div class="info-label" style="margin-bottom: 5px">IP Address</div>
+            <div style="font-weight: bold; color: #667eea" id="ipAddress">
+              --
+            </div>
+          </div>
+        </div>
+
+        <!-- Message Log -->
+        <div class="card" style="grid-column: span 2">
+          <div class="card-title">
+            <span class="icon">📋</span>
+            Message Log
+          </div>
+          <div class="log" id="messageLog"></div>
+          <button
+            class="button button-primary"
+            onclick="clearLog()"
+            style="margin-top: 10px"
+          >
+            Clear Log
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // WebSocket connection
+      let ws = null;
+      let wsUrl = "";
+
+      // Chart data storage
+      const maxDataPoints = 30;
+      const chartData = {
+        dhtTemp: [],
+        dhtHum: [],
+        bmpTemp: [],
+        bmpPress: [],
+        labels: [],
+      };
+
+      // Chart instances
+      let charts = {};
+
+      // Initialize on page load
+      window.addEventListener("load", init);
+
+      function init() {
+        // Determine WebSocket URL
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const host = window.location.hostname;
+        wsUrl = `${protocol}//${host}:81/ws`;
+
+        log("Initializing dashboard...");
+        log(`WebSocket URL: ${wsUrl}`);
+
+        // Setup event listeners
+        setupEventListeners();
+
+        // Initialize charts
+        initCharts();
+
+        // Connect to WebSocket
+        connectWebSocket();
+      }
+
+      function setupEventListeners() {
+        // RGB sliders
+        document
+          .getElementById("sliderR")
+          .addEventListener("input", updateLEDPreview);
+        document
+          .getElementById("sliderG")
+          .addEventListener("input", updateLEDPreview);
+        document
+          .getElementById("sliderB")
+          .addEventListener("input", updateLEDPreview);
+      }
+
+      function connectWebSocket() {
+        log("Connecting to WebSocket...");
+        updateConnectionStatus("connecting");
+
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          log("✓ WebSocket connected!");
+          updateConnectionStatus("connected");
+        };
+
+        ws.onclose = () => {
+          log("✗ WebSocket disconnected");
+          updateConnectionStatus("disconnected");
+
+          // Attempt reconnect after 3 seconds
+          setTimeout(() => {
+            log("Attempting to reconnect...");
+            connectWebSocket();
+          }, 3000);
+        };
+
+        ws.onerror = (error) => {
+          log("❌ WebSocket error");
+          console.error(error);
+        };
+
+        ws.onmessage = (event) => {
+          handleMessage(event.data);
+        };
+      }
+
+      function handleMessage(data) {
+        try {
+          const msg = JSON.parse(data);
+
+          switch (msg.type) {
+            case "welcome":
+              log(`✓ ${msg.message} (Client ID: ${msg.clientId})`);
+              break;
+
+            case "sensors":
+              updateSensorData(msg);
+              break;
+
+            case "status":
+              updateSystemInfo(msg);
+              break;
+
+            case "ledState":
+              updateLEDState(msg.r, msg.g, msg.b);
+              break;
+
+            case "ack":
+              log(`✓ ${msg.message}`);
+              break;
+
+            case "error":
+              log(`❌ Error: ${msg.message}`);
+              break;
+
+            case "pong":
+              log("↔️ Pong received");
+              break;
+
+            default:
+              log(`Received: ${msg.type}`);
+          }
+        } catch (e) {
+          log("❌ Failed to parse message");
+          console.error(e);
+        }
+      }
+
+      function updateConnectionStatus(status) {
+        const statusEl = document.getElementById("connectionStatus");
+        statusEl.className = "connection-status";
+
+        switch (status) {
+          case "connected":
+            statusEl.classList.add("status-connected");
+            statusEl.textContent = "✓ Connected";
+            break;
+          case "disconnected":
+            statusEl.classList.add("status-disconnected");
+            statusEl.textContent = "✗ Disconnected";
+            break;
+          case "connecting":
+            statusEl.classList.add("status-connecting");
+            statusEl.textContent = "⏳ Connecting...";
+            break;
+        }
+      }
+
+      function updateSensorData(msg) {
+        const time = new Date().toLocaleTimeString();
+
+        // Update labels array
+        chartData.labels.push(time);
+        if (chartData.labels.length > maxDataPoints) {
+          chartData.labels.shift();
+        }
+
+        // DHT11 data
+        if (msg.dht && msg.dht.valid) {
+          document.getElementById("dhtTemp").textContent =
+            msg.dht.temperature.toFixed(1);
+          document.getElementById("dhtHum").textContent =
+            msg.dht.humidity.toFixed(1);
+          document.getElementById("dhtTempStatus").textContent = "Valid";
+          document.getElementById("dhtTempStatus").className =
+            "sensor-status sensor-valid";
+          document.getElementById("dhtHumStatus").textContent = "Valid";
+          document.getElementById("dhtHumStatus").className =
+            "sensor-status sensor-valid";
+
+          // Update chart data
+          chartData.dhtTemp.push(msg.dht.temperature);
+          chartData.dhtHum.push(msg.dht.humidity);
+        } else {
+          document.getElementById("dhtTempStatus").textContent = "Invalid";
+          document.getElementById("dhtTempStatus").className =
+            "sensor-status sensor-invalid";
+          document.getElementById("dhtHumStatus").textContent = "Invalid";
+          document.getElementById("dhtHumStatus").className =
+            "sensor-status sensor-invalid";
+
+          chartData.dhtTemp.push(null);
+          chartData.dhtHum.push(null);
+        }
+
+        // BMP180 data
+        if (msg.bmp && msg.bmp.valid) {
+          document.getElementById("bmpTemp").textContent =
+            msg.bmp.temperature.toFixed(1);
+          document.getElementById("bmpPress").textContent =
+            msg.bmp.pressure.toFixed(1);
+          document.getElementById("bmpTempStatus").textContent = "Valid";
+          document.getElementById("bmpTempStatus").className =
+            "sensor-status sensor-valid";
+          document.getElementById("bmpPressStatus").textContent = "Valid";
+          document.getElementById("bmpPressStatus").className =
+            "sensor-status sensor-valid";
+
+          // Update chart data
+          chartData.bmpTemp.push(msg.bmp.temperature);
+          chartData.bmpPress.push(msg.bmp.pressure);
+        } else {
+          document.getElementById("bmpTempStatus").textContent = "Invalid";
+          document.getElementById("bmpTempStatus").className =
+            "sensor-status sensor-invalid";
+          document.getElementById("bmpPressStatus").textContent = "Invalid";
+          document.getElementById("bmpPressStatus").className =
+            "sensor-status sensor-invalid";
+
+          chartData.bmpTemp.push(null);
+          chartData.bmpPress.push(null);
+        }
+
+        // Limit data points
+        if (chartData.dhtTemp.length > maxDataPoints) {
+          chartData.dhtTemp.shift();
+          chartData.dhtHum.shift();
+          chartData.bmpTemp.shift();
+          chartData.bmpPress.shift();
+        }
+
+        // Update charts
+        updateCharts();
+      }
+
+      function updateSystemInfo(msg) {
+        document.getElementById("uptime").textContent = formatUptime(
+          msg.uptime,
+        );
+        document.getElementById("clients").textContent = msg.clients;
+        document.getElementById("heap").textContent = formatBytes(msg.freeHeap);
+        document.getElementById("rssi").textContent = msg.wifiRSSI + " dBm";
+        document.getElementById("ipAddress").textContent = msg.ipAddress;
+      }
+
+      function updateLEDState(r, g, b) {
+        document.getElementById("sliderR").value = r;
+        document.getElementById("sliderG").value = g;
+        document.getElementById("sliderB").value = b;
+        updateLEDPreview();
+      }
+
+      function updateLEDPreview() {
+        const r = document.getElementById("sliderR").value;
+        const g = document.getElementById("sliderG").value;
+        const b = document.getElementById("sliderB").value;
+
+        document.getElementById("valueR").textContent = r;
+        document.getElementById("valueG").textContent = g;
+        document.getElementById("valueB").textContent = b;
+
+        document.getElementById("ledPreview").style.backgroundColor =
+          `rgb(${r}, ${g}, ${b})`;
+      }
+
+      function sendLEDColor() {
+        const r = parseInt(document.getElementById("sliderR").value);
+        const g = parseInt(document.getElementById("sliderG").value);
+        const b = parseInt(document.getElementById("sliderB").value);
+
+        const msg = {
+          type: "led",
+          r: r,
+          g: g,
+          b: b,
+        };
+
+        ws.send(JSON.stringify(msg));
+        log(`Sent LED color: RGB(${r}, ${g}, ${b})`);
+      }
+
+      function turnOffLED() {
+        const msg = {
+          type: "led",
+          mode: "off",
+        };
+
+        ws.send(JSON.stringify(msg));
+        log("Turned off LED");
+
+        document.getElementById("sliderR").value = 0;
+        document.getElementById("sliderG").value = 0;
+        document.getElementById("sliderB").value = 0;
+        updateLEDPreview();
+      }
+
+      function setPresetColor(r, g, b) {
+        document.getElementById("sliderR").value = r;
+        document.getElementById("sliderG").value = g;
+        document.getElementById("sliderB").value = b;
+        updateLEDPreview();
+        sendLEDColor();
+      }
+
+      function initCharts() {
+        const chartConfig = (label, color, data) => ({
+          type: "line",
+          data: {
+            labels: chartData.labels,
+            datasets: [
+              {
+                label: label,
+                data: data,
+                borderColor: color,
+                backgroundColor: color + "20",
+                borderWidth: 2,
+                tension: 0.4,
+                fill: true,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+            },
+            scales: {
+              y: { beginAtZero: false },
+              x: { display: false },
+            },
+          },
+        });
+
+        charts.dhtTemp = new Chart(
+          document.getElementById("chartDHTTemp"),
+          chartConfig("DHT11 Temperature", "#FF6384", chartData.dhtTemp),
+        );
+
+        charts.dhtHum = new Chart(
+          document.getElementById("chartDHTHum"),
+          chartConfig("DHT11 Humidity", "#36A2EB", chartData.dhtHum),
+        );
+
+        charts.bmpTemp = new Chart(
+          document.getElementById("chartBMPTemp"),
+          chartConfig("BMP180 Temperature", "#FFCE56", chartData.bmpTemp),
+        );
+
+        charts.bmpPress = new Chart(
+          document.getElementById("chartBMPPress"),
+          chartConfig("BMP180 Pressure", "#4BC0C0", chartData.bmpPress),
+        );
+      }
+
+      function updateCharts() {
+        Object.values(charts).forEach((chart) => chart.update("none"));
+      }
+
+      function log(message) {
+        const logEl = document.getElementById("messageLog");
+        const time = new Date().toLocaleTimeString();
+        const entry = document.createElement("div");
+        entry.className = "log-entry";
+        entry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
+        logEl.appendChild(entry);
+        logEl.scrollTop = logEl.scrollHeight;
+
+        // Limit log size
+        while (logEl.children.length > 50) {
+          logEl.removeChild(logEl.firstChild);
+        }
+      }
+
+      function clearLog() {
+        document.getElementById("messageLog").innerHTML = "";
+        log("Log cleared");
+      }
+
+      function formatUptime(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        return `${hours}h ${minutes}m ${secs}s`;
+      }
+
+      function formatBytes(bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
+        return (bytes / 1048576).toFixed(1) + " MB";
+      }
+    </script>
+  </body>
+</html>

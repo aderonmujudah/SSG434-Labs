@@ -29,13 +29,13 @@ Web-based OTA allows you to update ESP32 firmware using any web browser. No spec
 
 ### Advantages
 
-| Feature | Web OTA | USB Upload | Arduino OTA |
-|---------|---------|------------|-------------|
-| **No USB Cable** | ✅ | ❌ | ✅ |
-| **Visual Feedback** | ✅ Progress bar | ❌ | ⚠️ IDE only |
-| **Remote Access** | ✅ Over network | ❌ | ✅ Same network |
-| **User Friendly** | ✅ Anyone can use | ⚠️ Technical | ⚠️ Technical |
-| **Mobile Support** | ✅ Phone/tablet | ❌ | ❌ |
+| Feature             | Web OTA           | USB Upload   | Arduino OTA     |
+| ------------------- | ----------------- | ------------ | --------------- |
+| **No USB Cable**    | ✅                | ❌           | ✅              |
+| **Visual Feedback** | ✅ Progress bar   | ❌           | ⚠️ IDE only     |
+| **Remote Access**   | ✅ Over network   | ❌           | ✅ Same network |
+| **User Friendly**   | ✅ Anyone can use | ⚠️ Technical | ⚠️ Technical    |
+| **Mobile Support**  | ✅ Phone/tablet   | ❌           | ❌              |
 
 ---
 
@@ -59,13 +59,14 @@ curl http://192.168.1.100/status
 ```
 
 Expected response:
+
 ```json
 {
-  "version":"1.0.0",
-  "uptime":"10m 45s",
-  "freeHeap":234567,
-  "updateStatus":"Ready",
-  "updateProgress":0
+  "version": "1.0.0",
+  "uptime": "10m 45s",
+  "freeHeap": 234567,
+  "updateStatus": "Ready",
+  "updateProgress": 0
 }
 ```
 
@@ -79,6 +80,7 @@ Expected response:
 ### 3. Browser Requirements
 
 **Supported Browsers:**
+
 - ✅ Google Chrome (recommended)
 - ✅ Mozilla Firefox
 - ✅ Microsoft Edge
@@ -86,6 +88,7 @@ Expected response:
 - ✅ Opera
 
 **Minimum versions:**
+
 - Chrome 60+
 - Firefox 55+
 - Edge 79+
@@ -146,11 +149,13 @@ Your Sketch Folder/
 ```
 
 **File naming pattern:**
+
 ```
 [SketchName].ino.esp32.bin
 ```
 
 **File size:**
+
 - Typical: 800 KB - 1.5 MB
 - With libraries: Can be larger
 - **Important:** Must fit in available flash partition
@@ -170,6 +175,7 @@ ls -lh ESP32_OTA_Firmware_v2.ino.esp32.bin
 ```
 
 **Warning Signs:**
+
 - ❌ File size = 0 bytes (compilation failed)
 - ❌ No .bin file created (check for errors)
 - ❌ File smaller than 500 KB (incomplete)
@@ -213,6 +219,7 @@ arp-scan --localnet
 3. Press Enter
 
 **Alternative URL (if mDNS works):**
+
 ```
 http://esp32-ota.local
 ```
@@ -237,6 +244,7 @@ Build Time: 10:30:00
 ```
 
 **If page doesn't load:**
+
 - Check IP address is correct
 - Ping ESP32: `ping 192.168.1.100`
 - Verify ESP32 is powered and connected
@@ -251,6 +259,7 @@ Build Time: 10:30:00
 Scroll to the "📦 Upload New Firmware" section.
 
 **What you'll see:**
+
 - File input field
 - "Upload & Update Firmware" button
 - Warning about .bin files only
@@ -274,11 +283,13 @@ Scroll to the "📦 Upload New Firmware" section.
 ### Step 3: Verify File Selected
 
 After selection, you should see:
+
 ```
 [File Input: ESP32_OTA_Firmware_v2.ino.esp32.bin]
 ```
 
 **Validation:**
+
 - ✅ File name ends with `.bin`
 - ✅ File size shown (if supported by browser)
 - ✅ Upload button becomes active
@@ -291,6 +302,7 @@ After selection, you should see:
 4. Status message appears: "Uploading firmware... Please wait"
 
 **⚠️ Important:**
+
 - Don't close browser window
 - Don't refresh page
 - Don't navigate away
@@ -329,11 +341,11 @@ Behind the scenes:
 
 **Progress Stages:**
 
-| Stage | Progress | What's Happening |
-|-------|----------|------------------|
-| **Uploading** | 0-99% | File being sent to ESP32 |
-| **Verifying** | 99-100% | Checking firmware integrity |
-| **Flashing** | 100% | Writing to flash memory |
+| Stage         | Progress | What's Happening            |
+| ------------- | -------- | --------------------------- |
+| **Uploading** | 0-99%    | File being sent to ESP32    |
+| **Verifying** | 99-100%  | Checking firmware integrity |
+| **Flashing**  | 100%     | Writing to flash memory     |
 
 #### Status Messages
 
@@ -349,12 +361,12 @@ Behind the scenes:
 
 Watch the ESP32 LED:
 
-| LED Pattern | Meaning |
-|-------------|---------|
+| LED Pattern             | Meaning            |
+| ----------------------- | ------------------ |
 | **Rapid blink (100ms)** | Upload in progress |
-| **Steady ON** | Processing |
-| **5 quick blinks** | Success! |
-| **3 slow blinks** | Error |
+| **Steady ON**           | Processing         |
+| **5 quick blinks**      | Success!           |
+| **3 slow blinks**       | Error              |
 
 ### Serial Monitor Output
 
@@ -401,6 +413,7 @@ After successful upload:
 ```
 
 ESP32 will:
+
 1. Wait 3 seconds
 2. Restart automatically
 3. Boot with new firmware
@@ -408,6 +421,7 @@ ESP32 will:
 5. Start web server
 
 **Timeline:**
+
 - T+0s: Update completes
 - T+3s: Reboot initiated
 - T+5s: Boot sequence starts
@@ -424,6 +438,7 @@ Browser will attempt to reload page automatically:
 ```
 
 **If auto-reload fails:**
+
 - Wait 5 more seconds
 - Manually refresh: F5 or Ctrl+R
 - Or re-enter URL
@@ -435,6 +450,7 @@ After page reloads, verify:
 **v1.0.0 → v2.0.0** ✅
 
 Look for:
+
 - Version banner changed
 - Build date updated
 - New features visible
@@ -457,6 +473,7 @@ curl http://192.168.1.100/status
 ```
 
 Expected response:
+
 ```json
 {
   "version": "2.0.0",    ← Changed!
@@ -487,11 +504,13 @@ Test all features still work:
 #### Error: "Upload failed: Connection timeout"
 
 **Caused by:**
+
 - WiFi signal weak
 - ESP32 too far from router
 - Network congestion
 
 **Solutions:**
+
 1. Move ESP32 closer to router
 2. Check WiFi RSSI in Serial Monitor
 3. Reduce network traffic
@@ -502,11 +521,13 @@ Test all features still work:
 #### Error: "Invalid firmware file"
 
 **Caused by:**
+
 - Wrong file type (not .bin)
 - Corrupted binary
 - Wrong architecture (not ESP32)
 
 **Solutions:**
+
 1. Verify file ends with `.bin`
 2. Re-export binary from Arduino IDE
 3. Check compilation was successful
@@ -517,10 +538,12 @@ Test all features still work:
 #### Error: "Not enough space"
 
 **Caused by:**
+
 - Firmware too large for partition
 - Flash memory full
 
 **Solutions:**
+
 1. Check firmware size vs partition size
 2. Reduce firmware size (remove unused libraries)
 3. Use different partition scheme
@@ -531,11 +554,13 @@ Test all features still work:
 #### Error: "Update failed at 50%"
 
 **Caused by:**
+
 - Power loss during update
 - WiFi disconnected
 - Memory allocation failure
 
 **Solutions:**
+
 1. Ensure stable power supply
 2. Use quality USB cable/power adapter
 3. Check WiFi doesn't disconnect
@@ -552,6 +577,7 @@ Test all features still work:
 **Recovery Steps:**
 
 1. **Serial Monitor Check**
+
    ```
    Connect USB cable
    Open Serial Monitor (115200 baud)
@@ -560,6 +586,7 @@ Test all features still work:
    ```
 
 2. **Re-upload via USB**
+
    ```
    Connect USB cable
    Upload working firmware
@@ -626,20 +653,20 @@ Add custom visual feedback:
 
 ```javascript
 // Custom progress handler
-xhr.upload.addEventListener('progress', function(e) {
-    const percent = (e.loaded / e.total) * 100;
-    
-    // Custom logger
-    console.log(`Upload: ${percent}%`);
-    
-    // Color change based on progress
-    if (percent < 30) progressBar.style.background = 'red';
-    else if (percent < 70) progressBar.style.background = 'yellow';
-    else progressBar.style.background = 'green';
-    
-    // Sound notifications
-    if (percent === 50) playSound('halfway.mp3');
-    if (percent === 100) playSound('complete.mp3');
+xhr.upload.addEventListener("progress", function (e) {
+  const percent = (e.loaded / e.total) * 100;
+
+  // Custom logger
+  console.log(`Upload: ${percent}%`);
+
+  // Color change based on progress
+  if (percent < 30) progressBar.style.background = "red";
+  else if (percent < 70) progressBar.style.background = "yellow";
+  else progressBar.style.background = "green";
+
+  // Sound notifications
+  if (percent === 50) playSound("halfway.mp3");
+  if (percent === 100) playSound("complete.mp3");
 });
 ```
 
@@ -649,18 +676,14 @@ Update multiple ESP32 devices:
 
 ```javascript
 // Update multiple devices
-const devices = [
-    '192.168.1.100',
-    '192.168.1.101',
-    '192.168.1.102'
-];
+const devices = ["192.168.1.100", "192.168.1.101", "192.168.1.102"];
 
 async function updateAll(firmware) {
-    for (const ip of devices) {
-        console.log(`Updating ${ip}...`);
-        await uploadFirmware(ip, firmware);
-        await sleep(5000);  // Wait for reboot
-    }
+  for (const ip of devices) {
+    console.log(`Updating ${ip}...`);
+    await uploadFirmware(ip, firmware);
+    await sleep(5000); // Wait for reboot
+  }
 }
 ```
 
@@ -676,7 +699,7 @@ updateTime.setHours(2, 0, 0, 0);
 const timeUntilUpdate = updateTime - Date.now();
 
 setTimeout(() => {
-    uploadFirmware();
+  uploadFirmware();
 }, timeUntilUpdate);
 ```
 
@@ -708,7 +731,7 @@ Implement automatic rollback:
 void setup() {
     // Mark current partition as valid
     esp_ota_mark_app_valid_cancel_rollback();
-    
+
     // Or trigger rollback on failure
     if (updateFailed) {
         esp_ota_mark_app_invalid_rollback_and_reboot();
@@ -723,13 +746,16 @@ void setup() {
 ### Endpoints
 
 #### GET `/`
+
 - **Description:** Main web interface
 - **Returns:** HTML page
 - **Status:** 200 OK
 
 #### GET `/status`
+
 - **Description:** Device status and version
 - **Returns:** JSON
+
 ```json
 {
   "version": "2.0.0",
@@ -741,12 +767,14 @@ void setup() {
 ```
 
 #### POST `/update`
+
 - **Description:** Upload firmware binary
 - **Content-Type:** multipart/form-data
 - **Form Field:** firmware (file)
 - **Returns:** Success/error message
 
 #### GET `/led?state=[on|off|blink]`
+
 - **Description:** Control LED
 - **Parameters:** state (string)
 - **Returns:** Plain text confirmation
@@ -786,7 +814,7 @@ You now know how to:
 ✅ Verify successful updates  
 ✅ Troubleshoot common issues  
 ✅ Follow best practices  
-✅ Implement advanced features  
+✅ Implement advanced features
 
 **Web OTA = Powerful, User-Friendly, Mobile-Compatible** 🚀
 

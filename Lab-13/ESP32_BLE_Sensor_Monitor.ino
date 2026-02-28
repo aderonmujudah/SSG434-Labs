@@ -71,18 +71,27 @@ class MyServerCallbacks: public BLEServerCallbacks {
 // LED Control Callback
 class LedControlCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
-      std::string value = pCharacteristic->getValue();
+      uint8_t* data = pCharacteristic->getData();
+      size_t len = pCharacteristic->getValue().length();
       
-      if (value.length() > 0) {
+      if (len > 0) {
         Serial.print("LED Control received: ");
         
+        // Convert to Arduino String for easier comparison
+        String value = "";
+        for (int i = 0; i < len; i++) {
+          value += (char)data[i];
+        }
+        
+        Serial.println(value);
+        
         // Check command
-        if (value[0] == '1' || value == "ON" || value == "on") {
+        if (value == "1" || value == "ON" || value == "on") {
           ledState = true;
           digitalWrite(LED_PIN, HIGH);
           Serial.println("LED ON");
         } 
-        else if (value[0] == '0' || value == "OFF" || value == "off") {
+        else if (value == "0" || value == "OFF" || value == "off") {
           ledState = false;
           digitalWrite(LED_PIN, LOW);
           Serial.println("LED OFF");
