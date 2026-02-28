@@ -1,0 +1,27 @@
+# Arduino IDE
+*.elf
+*.eep
+*.hex
+*.map
+*.sym
+*.lss
+*.lst
+*.o
+*.d
+*.tmp
+
+# Build files
+build/
+*.bin
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
