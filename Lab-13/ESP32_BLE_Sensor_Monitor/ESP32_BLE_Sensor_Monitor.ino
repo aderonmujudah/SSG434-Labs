@@ -23,7 +23,8 @@
 // Hardware Pin Definitions
 #define LED_PIN 12
 #define DHT_PIN 15
-#define DHT_TYPE DHT11
+#define DHT_TYPE DHT22
+
 
 // BLE Service UUIDs
 #define DEVICE_INFO_SERVICE_UUID        "180A"  // Standard Device Information Service

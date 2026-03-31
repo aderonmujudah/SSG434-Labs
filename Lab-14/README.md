@@ -1,15 +1,15 @@
-# Lab-14: ESP32 MQTT Weather Station
+# Lab-14: ESP32 MQTT Analog Sensor Station
 
 ## 📋 Overview
 
-This lab implements a complete IoT weather station using ESP32, multiple sensors (BME280 and DHT11), and MQTT protocol for real-time data publishing and remote control capabilities.
+This lab implements an analog sensor station using ESP32, a hall sensor (HW-495), a microphone module (HW-485), and MQTT for real-time data publishing and remote control capabilities.
 
 ### Features
 
-✅ **Dual Sensor Setup**
+✅ **Dual Analog Sensor Setup**
 
-- BME280: Temperature, Humidity, and Barometric Pressure (I2C)
-- DHT11: Temperature and Humidity (Digital)
+- HW-495: Magnetic field (Analog)
+- HW-485: Sound intensity (Analog)
 
 ✅ **MQTT Communication**
 
@@ -36,27 +36,26 @@ This lab implements a complete IoT weather station using ESP32, multiple sensors
 
 ### Components
 
-| Component               | Quantity | Purpose                         |
-| ----------------------- | -------- | ------------------------------- |
-| ESP32 Development Board | 1        | Main microcontroller            |
-| BME280 Sensor Module    | 1        | Temperature, humidity, pressure |
-| DHT11 Sensor            | 1        | Temperature, humidity           |
-| LED                     | 1        | Status indicator / Control test |
-| 220Ω Resistor           | 1        | LED current limiting            |
-| Breadboard              | 1        | Circuit assembly                |
-| Jumper Wires            | Several  | Connections                     |
+| Component                | Quantity | Purpose                         |
+| ------------------------ | -------- | ------------------------------- |
+| ESP32 Development Board  | 1        | Main microcontroller            |
+| HW-495 Hall Sensor       | 1        | Magnetic field (analog)         |
+| HW-485 Microphone Module | 1        | Sound intensity (analog)        |
+| LED                      | 1        | Status indicator / Control test |
+| 220Ω Resistor            | 1        | LED current limiting            |
+| Breadboard               | 1        | Circuit assembly                |
+| Jumper Wires             | Several  | Connections                     |
 
 ### Pin Configuration
 
 ```
 ESP32 Pin    →    Component
 ─────────────────────────────
-GPIO 21 (SDA) →   BME280 SDA
-GPIO 22 (SCL) →   BME280 SCL
-3.3V          →   BME280 VCC & DHT11 VCC
-GND           →   BME280 GND & DHT11 GND
+3.3V          →   HW-495 VCC & HW-485 VCC
+GND           →   HW-495 GND & HW-485 GND
 
-GPIO 15       →   DHT11 DATA
+GPIO 34       →   HW-495 AO (Analog Out)
+GPIO 35       →   HW-485 AO (Analog Out)
 
 GPIO 12       →   LED + (via 220Ω resistor)
 GND           →   LED -
@@ -75,19 +74,7 @@ Install these libraries via Arduino IDE Library Manager:
    Sketch → Include Library → Manage Libraries → Search "PubSubClient"
    ```
 
-3. **Adafruit BME280** Library
-
-   ```
-   Search "Adafruit BME280" and install along with dependencies
-   ```
-
-4. **DHT sensor library** by Adafruit
-
-   ```
-   Search "DHT sensor library" and install along with dependencies
-   ```
-
-5. **ArduinoJson** by Benoit Blanchon
+3. **ArduinoJson** by Benoit Blanchon
    ```
    Search "ArduinoJson" (install version 6.x)
    ```
@@ -137,16 +124,15 @@ const char* mqtt_password = "your_password";
 
 ### Step 1: Hardware Assembly
 
-1. Connect BME280 sensor to ESP32 via I2C:
-   - BME280 VCC → ESP32 3.3V
-   - BME280 GND → ESP32 GND
-   - BME280 SDA → ESP32 GPIO 21
-   - BME280 SCL → ESP32 GPIO 22
+1. Connect HW-495 hall sensor:
+   - HW-495 VCC → ESP32 3.3V
+   - HW-495 GND → ESP32 GND
+   - HW-495 AO → ESP32 GPIO 34
 
-2. Connect DHT11 sensor:
-   - DHT11 VCC → ESP32 3.3V
-   - DHT11 GND → ESP32 GND
-   - DHT11 DATA → ESP32 GPIO 15
+2. Connect HW-485 microphone module:
+   - HW-485 VCC → ESP32 3.3V
+   - HW-485 GND → ESP32 GND
+   - HW-485 AO → ESP32 GPIO 35
 
 3. Connect LED:
    - LED Anode (+) → 220Ω resistor → ESP32 GPIO 12
@@ -172,17 +158,16 @@ Open Serial Monitor (115200 baud) to see:
 Expected output:
 
 ```
-=== ESP32 MQTT Weather Station ===
-Initializing BME280... OK
-Initializing DHT11... OK
+=== ESP32 MQTT Analog Sensor Station ===
+ADC initialized for hall sensor and microphone
 Connecting to WiFi: YourNetwork
 WiFi connected!
 IP address: 192.168.1.x
 Connecting to MQTT broker... Connected!
 Subscribed to control topics:
-  - esp32/weather/led/control
-  - esp32/weather/config
-  - esp32/weather/config/interval
+   - esp32/sensors/led/control
+   - esp32/sensors/config
+   - esp32/sensors/config/interval
 ```
 
 ---
@@ -193,39 +178,41 @@ Subscribed to control topics:
 
 | Topic                              | Description        | Data Format | Example               |
 | ---------------------------------- | ------------------ | ----------- | --------------------- |
-| `esp32/weather/bme280/temperature` | BME280 temperature | Float (°C)  | `23.45`               |
-| `esp32/weather/bme280/humidity`    | BME280 humidity    | Float (%)   | `65.30`               |
-| `esp32/weather/bme280/pressure`    | BME280 pressure    | Float (hPa) | `1013.25`             |
-| `esp32/weather/dht11/temperature`  | DHT11 temperature  | Float (°C)  | `24.00`               |
-| `esp32/weather/dht11/humidity`     | DHT11 humidity     | Float (%)   | `60.00`               |
-| `esp32/weather/all`                | All data combined  | JSON        | See below             |
-| `esp32/weather/status`             | Device status      | JSON        | `{"status":"online"}` |
+| `esp32/sensors/hall/raw`           | Hall raw ADC       | Integer     | `2310`                |
+| `esp32/sensors/hall/voltage`       | Hall voltage       | Float (V)   | `1.86`                |
+| `esp32/sensors/sound/raw`          | Mic raw ADC        | Integer     | `2075`                |
+| `esp32/sensors/sound/level`        | Sound level        | Float       | `18.40`               |
+| `esp32/sensors/sound/peak_to_peak` | Sound peak-to-peak | Integer     | `210`                 |
+| `esp32/sensors/all`                | All data combined  | JSON        | See below             |
+| `esp32/sensors/status`             | Device status      | JSON        | `{"status":"online"}` |
 
 ### Subscribed Topics (Control)
 
 | Topic                           | Description             | Command Format | Examples                             |
 | ------------------------------- | ----------------------- | -------------- | ------------------------------------ |
-| `esp32/weather/led/control`     | LED control             | Text           | `on`, `off`, `toggle`, `blink,5,500` |
-| `esp32/weather/config`          | General config          | JSON           | `{"interval":5000,"led":"on"}`       |
-| `esp32/weather/config/interval` | Update publish interval | Integer (ms)   | `15000`                              |
+| `esp32/sensors/led/control`     | LED control             | Text           | `on`, `off`, `toggle`, `blink,5,500` |
+| `esp32/sensors/config`          | General config          | JSON           | `{"interval":5000,"led":"on"}`       |
+| `esp32/sensors/config/interval` | Update publish interval | Integer (ms)   | `15000`                              |
 
 ### Combined JSON Data Format
 
+Note: `sound.level` is the average absolute deviation of ADC samples, so larger values indicate louder sound.
+
 ```json
 {
-  "device": "ESP32_Weather_Station",
+  "device": "ESP32_Analog_Sensor_Station",
   "timestamp": 12345678,
   "uptime": 12345,
   "wifi_rssi": -45,
   "led_state": true,
-  "bme280": {
-    "temperature": 23.45,
-    "humidity": 65.3,
-    "pressure": 1013.25
+  "hall": {
+    "raw": 2310,
+    "voltage": 1.86
   },
-  "dht11": {
-    "temperature": 24.0,
-    "humidity": 60.0
+  "sound": {
+    "raw": 2075,
+    "level": 18.4,
+    "peak_to_peak": 210
   }
 }
 ```
@@ -240,15 +227,15 @@ Subscribed to control topics:
 
 ```bash
 # Turn LED ON
-Publish to: esp32/weather/led/control
+Publish to: esp32/sensors/led/control
 Message: on
 
 # Turn LED OFF
-Publish to: esp32/weather/led/control
+Publish to: esp32/sensors/led/control
 Message: off
 
 # Toggle LED state
-Publish to: esp32/weather/led/control
+Publish to: esp32/sensors/led/control
 Message: toggle
 ```
 
@@ -270,7 +257,7 @@ Message: blink,5,300
 
 ```bash
 # Set interval to 5 seconds
-Publish to: esp32/weather/config/interval
+Publish to: esp32/sensors/config/interval
 Message: 5000
 
 # Set interval to 30 seconds
@@ -283,7 +270,7 @@ Message: 30000
 
 ```bash
 # Update both interval and LED state
-Publish to: esp32/weather/config
+Publish to: esp32/sensors/config
 Message: {"interval":15000,"led":"on"}
 ```
 
@@ -295,7 +282,7 @@ Message: {"interval":15000,"led":"on"}
 
 1. Download from: http://mqtt-explorer.com/
 2. Connect to your broker
-3. Navigate to `esp32/weather/` topics
+3. Navigate to `esp32/sensors/` topics
 4. View real-time sensor data
 5. Publish control commands
 
@@ -303,29 +290,29 @@ Message: {"interval":15000,"led":"on"}
 
 1. Download from: https://mqttfx.jensd.de/
 2. Configure broker connection
-3. Subscribe to `esp32/weather/#` (all topics)
+3. Subscribe to `esp32/sensors/#` (all topics)
 4. Publish to control topics
 
 ### Option 3: Mosquitto CLI (Command Line)
 
 ```bash
 # Subscribe to all topics
-mosquitto_sub -h broker.hivemq.com -t "esp32/weather/#" -v
+mosquitto_sub -h broker.hivemq.com -t "esp32/sensors/#" -v
 
 # Subscribe to specific sensor
-mosquitto_sub -h broker.hivemq.com -t "esp32/weather/bme280/temperature"
+mosquitto_sub -h broker.hivemq.com -t "esp32/sensors/hall/raw"
 
 # Control LED - Turn ON
-mosquitto_pub -h broker.hivemq.com -t "esp32/weather/led/control" -m "on"
+mosquitto_pub -h broker.hivemq.com -t "esp32/sensors/led/control" -m "on"
 
 # Control LED - Turn OFF
-mosquitto_pub -h broker.hivemq.com -t "esp32/weather/led/control" -m "off"
+mosquitto_pub -h broker.hivemq.com -t "esp32/sensors/led/control" -m "off"
 
 # Set publish interval to 5 seconds
-mosquitto_pub -h broker.hivemq.com -t "esp32/weather/config/interval" -m "5000"
+mosquitto_pub -h broker.hivemq.com -t "esp32/sensors/config/interval" -m "5000"
 
 # Blink LED
-mosquitto_pub -h broker.hivemq.com -t "esp32/weather/led/control" -m "blink,3,500"
+mosquitto_pub -h broker.hivemq.com -t "esp32/sensors/led/control" -m "blink,3,500"
 ```
 
 ### Option 4: Python MQTT Client
@@ -340,13 +327,13 @@ def on_message(client, userdata, message):
 client = mqtt.Client()
 client.on_message = on_message
 client.connect("broker.hivemq.com", 1883)
-client.subscribe("esp32/weather/#")
+client.subscribe("esp32/sensors/#")
 
 # Start listening
 client.loop_start()
 
 # Control LED
-client.publish("esp32/weather/led/control", "on")
+client.publish("esp32/sensors/led/control", "on")
 
 # Keep running
 input("Press Enter to stop...\n")
@@ -383,19 +370,18 @@ client.loop_stop()
 
 ### Sensor Issues
 
-**Problem:** BME280 initialization failed
+**Problem:** Hall or microphone values are stuck
 
-- ✅ Check I2C wiring (SDA, SCL)
-- ✅ Verify sensor address (0x76 or 0x77)
-- ✅ Try I2C scanner sketch to detect address
-- ✅ Check power supply (3.3V, not 5V)
+- ✅ Verify sensor power (3.3V and GND)
+- ✅ Confirm AO pins on GPIO 34 (hall) and GPIO 35 (mic)
+- ✅ Ensure sensors share common ground with ESP32
+- ✅ Test with Serial Monitor to verify changing values
 
-**Problem:** DHT11 returns NaN
+**Problem:** Microphone readings are noisy
 
-- ✅ Check data pin connection (GPIO 15)
-- ✅ Verify power connections
-- ✅ Wait 2 seconds after initialization
-- ✅ Consider replacing sensor if persistent
+- ✅ Keep analog wires short
+- ✅ Use a stable 3.3V supply
+- ✅ Avoid placing the mic near high-noise sources
 
 ### LED Issues
 
@@ -413,7 +399,7 @@ client.loop_stop()
 ### 1. Node-RED Dashboard
 
 - Import sensor data via MQTT
-- Create gauges for temperature, humidity, pressure
+- Create gauges for hall voltage and sound level
 - Add controls for LED
 - Setup charts for historical data
 
@@ -422,9 +408,9 @@ client.loop_stop()
 ```yaml
 sensor:
   - platform: mqtt
-    name: "ESP32 Temperature"
-    state_topic: "esp32/weather/bme280/temperature"
-    unit_of_measurement: "°C"
+   name: "ESP32 Hall Voltage"
+   state_topic: "esp32/sensors/hall/voltage"
+   unit_of_measurement: "V"
 ```
 
 ### 3. Grafana + InfluxDB
@@ -454,8 +440,7 @@ By completing this lab, you will learn:
 
 - ✅ ESP32 WiFi configuration and management
 - ✅ MQTT protocol basics (pub/sub model)
-- ✅ I2C communication with BME280
-- ✅ Digital sensor reading (DHT11)
+- ✅ ADC configuration and analog sensor reading
 - ✅ JSON data formatting and parsing
 - ✅ Remote device control via MQTT
 - ✅ IoT system architecture
@@ -481,7 +466,7 @@ By completing this lab, you will learn:
 
 - [ESP32 Arduino Core Documentation](https://docs.espressif.com/projects/arduino-esp32/)
 - [PubSubClient Library](https://pubsubclient.knolleary.net/)
-- [BME280 Datasheet](https://www.bosch-sensortec.com/products/environmental-sensors/humidity-sensors-bme280/)
+- [ESP32 ADC Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/adc.html)
 - [MQTT Protocol Specification](https://mqtt.org/)
 - [ArduinoJson Documentation](https://arduinojson.org/)
 

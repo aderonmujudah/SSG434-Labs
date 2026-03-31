@@ -1,6 +1,6 @@
-# Quick Start Guide - ESP32 MQTT Weather Station
+# Quick Start Guide - ESP32 MQTT Analog Sensor Station
 
-Get your weather station up and running in **15 minutes**! ⚡
+Get your analog sensor station up and running in **15 minutes**! ⚡
 
 ---
 
@@ -15,14 +15,12 @@ Get your weather station up and running in **15 minutes**! ⚡
 
 Open **Sketch → Include Library → Manage Libraries** and install:
 
-| Library Name                | Author          |
-| --------------------------- | --------------- |
-| **PubSubClient**            | Nick O'Leary    |
-| **Adafruit BME280 Library** | Adafruit        |
-| **DHT sensor library**      | Adafruit        |
-| **ArduinoJson**             | Benoit Blanchon |
+| Library Name     | Author          |
+| ---------------- | --------------- |
+| **PubSubClient** | Nick O'Leary    |
+| **ArduinoJson**  | Benoit Blanchon |
 
-> **Tip:** Also install dependencies when prompted (Adafruit Unified Sensor, etc.)
+> **Tip:** Also install dependencies when prompted.
 
 ---
 
@@ -32,13 +30,12 @@ Open **Sketch → Include Library → Manage Libraries** and install:
 
 | Component  | Pin           | Connect To              | Notes          |
 | ---------- | ------------- | ----------------------- | -------------- |
-| **BME280** | VCC           | ESP32 3.3V              | ⚠️ Not 5V!     |
+| **HW-495** | VCC           | ESP32 3.3V              | Analog hall    |
 |            | GND           | ESP32 GND               |                |
-|            | SDA           | ESP32 GPIO 21           | I2C Data       |
-|            | SCL           | ESP32 GPIO 22           | I2C Clock      |
-| **DHT11**  | VCC           | ESP32 3.3V              |                |
+|            | AO            | ESP32 GPIO 34           | ADC input      |
+| **HW-485** | VCC           | ESP32 3.3V              | Microphone     |
 |            | GND           | ESP32 GND               |                |
-|            | DATA          | ESP32 GPIO 15           | Signal         |
+|            | AO            | ESP32 GPIO 35           | ADC input      |
 | **LED**    | + (long leg)  | 220Ω resistor → GPIO 12 | With resistor! |
 |            | - (short leg) | ESP32 GND               |                |
 
@@ -47,11 +44,10 @@ Open **Sketch → Include Library → Manage Libraries** and install:
 ```
 ESP32          Component
 ─────          ─────────
-3.3V    ────→  BME280 VCC, DHT11 VCC
-GND     ────→  BME280 GND, DHT11 GND, LED -
-GPIO 21 ────→  BME280 SDA
-GPIO 22 ────→  BME280 SCL
-GPIO 15 ────→  DHT11 DATA
+3.3V    ────→  HW-495 VCC, HW-485 VCC
+GND     ────→  HW-495 GND, HW-485 GND, LED -
+GPIO 34 ────→  HW-495 AO
+GPIO 35 ────→  HW-485 AO
 GPIO 12 ────→  [220Ω] → LED +
 ```
 
@@ -118,9 +114,8 @@ Set baud rate to: 115200
 ### 5. Expected Output ✅
 
 ```
-=== ESP32 MQTT Weather Station ===
-Initializing BME280... OK
-Initializing DHT11... OK
+=== ESP32 MQTT Analog Sensor Station ===
+ADC initialized for hall sensor and microphone
 
 Connecting to WiFi: YourNetwork
 .....
@@ -131,11 +126,8 @@ Connecting to MQTT broker... Connected!
 Subscribed to control topics
 
 --- Publishing Sensor Data ---
-BME280 Temp: 23.45 °C
-BME280 Humidity: 65.30 %
-BME280 Pressure: 1013.25 hPa
-DHT11 Temp: 24.00 °C
-DHT11 Humidity: 60.00 %
+Hall Raw: 2310 | Hall Voltage: 1.860 V
+Mic Raw: 2075 | Sound Level: 18.40 | Peak-to-Peak: 210
 ------------------------------
 ```
 
@@ -150,7 +142,7 @@ DHT11 Humidity: 60.00 %
    - Host: `broker.hivemq.com`
    - Port: `1883`
 3. **Connect**
-4. **Navigate:** `esp32/weather/`
+4. **Navigate:** `esp32/sensors/`
 5. **See:** Live sensor data! 📊
 
 ### Method 2: Command Line (Quick Test)
@@ -158,20 +150,20 @@ DHT11 Humidity: 60.00 %
 **Subscribe to sensor data:**
 
 ```bash
-mosquitto_sub -h broker.hivemq.com -t "esp32/weather/#" -v
+mosquitto_sub -h broker.hivemq.com -t "esp32/sensors/#" -v
 ```
 
 **Control the LED:**
 
 ```bash
 # Turn LED on
-mosquitto_pub -h broker.hivemq.com -t "esp32/weather/led/control" -m "on"
+mosquitto_pub -h broker.hivemq.com -t "esp32/sensors/led/control" -m "on"
 
 # Turn LED off
-mosquitto_pub -h broker.hivemq.com -t "esp32/weather/led/control" -m "off"
+mosquitto_pub -h broker.hivemq.com -t "esp32/sensors/led/control" -m "off"
 
 # Make it blink 5 times
-mosquitto_pub -h broker.hivemq.com -t "esp32/weather/led/control" -m "blink,5,500"
+mosquitto_pub -h broker.hivemq.com -t "esp32/sensors/led/control" -m "blink,5,500"
 ```
 
 ---
@@ -182,17 +174,17 @@ mosquitto_pub -h broker.hivemq.com -t "esp32/weather/led/control" -m "blink,5,50
 
 | Command | Publish To                  | Message       |
 | ------- | --------------------------- | ------------- |
-| LED On  | `esp32/weather/led/control` | `on`          |
-| LED Off | `esp32/weather/led/control` | `off`         |
-| Toggle  | `esp32/weather/led/control` | `toggle`      |
-| Blink   | `esp32/weather/led/control` | `blink,3,500` |
+| LED On  | `esp32/sensors/led/control` | `on`          |
+| LED Off | `esp32/sensors/led/control` | `off`         |
+| Toggle  | `esp32/sensors/led/control` | `toggle`      |
+| Blink   | `esp32/sensors/led/control` | `blink,3,500` |
 
 ### Configuration
 
 | Command                | Publish To                      | Message |
 | ---------------------- | ------------------------------- | ------- |
-| Change interval to 5s  | `esp32/weather/config/interval` | `5000`  |
-| Change interval to 30s | `esp32/weather/config/interval` | `30000` |
+| Change interval to 5s  | `esp32/sensors/config/interval` | `5000`  |
+| Change interval to 30s | `esp32/sensors/config/interval` | `30000` |
 
 ---
 
@@ -201,14 +193,14 @@ mosquitto_pub -h broker.hivemq.com -t "esp32/weather/led/control" -m "blink,5,50
 ### Published (Sensor Data)
 
 ```
-esp32/weather/
-├── bme280/
-│   ├── temperature    (Float, °C)
-│   ├── humidity       (Float, %)
-│   └── pressure       (Float, hPa)
-├── dht11/
-│   ├── temperature    (Float, °C)
-│   └── humidity       (Float, %)
+esp32/sensors/
+├── hall/
+│   ├── raw            (Integer, ADC)
+│   └── voltage        (Float, V)
+├── sound/
+│   ├── raw            (Integer, ADC)
+│   ├── level          (Float)
+│   └── peak_to_peak   (Integer)
 ├── all                (JSON with all data)
 └── status             (Device status)
 ```
@@ -216,7 +208,7 @@ esp32/weather/
 ### Subscribed (Control)
 
 ```
-esp32/weather/
+esp32/sensors/
 ├── led/control        (on/off/toggle/blink)
 ├── config             (JSON configuration)
 └── config/interval    (Integer, milliseconds)
@@ -234,22 +226,14 @@ esp32/weather/
 - Ensure you're using 2.4 GHz WiFi (not 5 GHz)
 - Move ESP32 closer to router
 
-### ❌ Issue: BME280 initialization failed
+### ❌ Issue: Hall or mic readings not changing
 
 **Fix:**
 
-- Check wiring: SDA → GPIO 21, SCL → GPIO 22
-- Verify 3.3V power (not 5V)
-- Try running I2C scanner to detect address
-
-### ❌ Issue: DHT11 returns NaN
-
-**Fix:**
-
-- Check DATA pin connected to GPIO 15
-- Ensure power connections are secure
-- Wait 2+ seconds after power-on
-- Try replacing DHT11 if persistent
+- Check AO connections (GPIO 34 for hall, GPIO 35 for mic)
+- Ensure sensors share GND with ESP32
+- Verify 3.3V power supply
+- Check Serial Monitor for values
 
 ### ❌ Issue: LED not lighting
 
@@ -287,7 +271,7 @@ Now that it's working:
 1. ✅ **Monitor data** in MQTT Explorer
 2. ✅ **Test LED controls** via MQTT
 3. ✅ **Change publish interval** dynamically
-4. ✅ **View combined JSON** in `esp32/weather/all` topic
+4. ✅ **View combined JSON** in `esp32/sensors/all` topic
 
 ### Want More?
 
@@ -312,7 +296,7 @@ Now that it's working:
 
 1. Install from App Store
 2. Configure broker connection
-3. Subscribe to `esp32/weather/#`
+3. Subscribe to `esp32/sensors/#`
 4. Publish to control topics
 
 ---
@@ -322,7 +306,7 @@ Now that it's working:
 - **LED blinks 3 times on startup** = System ready
 - **Check Serial Monitor** for diagnostic info
 - **WiFi RSSI shown** in Serial Monitor (-30 to -70 dBm is good)
-- **Combined JSON published** every interval to `esp32/weather/all`
+- **Combined JSON published** every interval to `esp32/sensors/all`
 - **Status updates** sent after control commands
 
 ---
@@ -331,7 +315,7 @@ Now that it's working:
 
 ```
 ┌─────────┐
-│ Sensors │ (BME280, DHT11)
+│ Sensors │ (HW-495, HW-485)
 └────┬────┘
      │ Read every 10 seconds
      ▼
@@ -381,7 +365,7 @@ You've successfully completed the quick start if:
 
 ## 🎉 Congratulations!
 
-You now have a fully functional IoT weather station!
+You now have a fully functional IoT analog sensor station!
 
 **Next Steps:**
 

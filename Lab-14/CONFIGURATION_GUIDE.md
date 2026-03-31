@@ -1,4 +1,4 @@
-# Configuration Guide - ESP32 MQTT Weather Station
+# Configuration Guide - ESP32 MQTT Analog Sensor Station
 
 ## 📋 Table of Contents
 
@@ -364,9 +364,8 @@ docker logs -f mosquitto
 3. **Expected output:**
 
 ```
-=== ESP32 MQTT Weather Station ===
-Initializing BME280... OK
-Initializing DHT11... OK
+=== ESP32 MQTT Analog Sensor Station ===
+ADC initialized for hall sensor and microphone
 
 Connecting to WiFi: MyHomeNetwork
 .....
@@ -375,22 +374,19 @@ IP address: 192.168.1.50
 Signal strength (RSSI): -45 dBm
 Connecting to MQTT broker... Connected!
 Subscribed to control topics:
-  - esp32/weather/led/control
-  - esp32/weather/config
-  - esp32/weather/config/interval
+  - esp32/sensors/led/control
+  - esp32/sensors/config
+  - esp32/sensors/config/interval
 Setup complete!
 =====================================
 
 --- Publishing Sensor Data ---
-BME280 Temp: 23.45 °C
-BME280 Humidity: 65.30 %
-BME280 Pressure: 1013.25 hPa
-DHT11 Temp: 24.00 °C
-DHT11 Humidity: 60.00 %
+Hall Raw: 2310 | Hall Voltage: 1.860 V
+Mic Raw: 2075 | Sound Level: 18.40 | Peak-to-Peak: 210
 ------------------------------
 
 Combined JSON published:
-{"device":"ESP32_Weather_Station","timestamp":12345,"uptime":12...}
+{"device":"ESP32_Analog_Sensor_Station","timestamp":12345,"uptime":12...}
 ```
 
 ### Step 2: Test with MQTT Client
@@ -400,55 +396,56 @@ Combined JSON published:
 1. **Download:** http://mqtt-explorer.com/
 2. **Configure Connection:**
    ```
-   Name: ESP32 Weather Station
+   Name: ESP32 Analog Sensor Station
    Host: broker.hivemq.com
    Port: 1883
    Username: (leave empty for public broker)
    Password: (leave empty)
    ```
 3. **Connect**
-4. **Navigate to:** esp32/weather/
+4. **Navigate to:** esp32/sensors/
 5. **You should see:**
-   - bme280/temperature
-   - bme280/humidity
-   - bme280/pressure
-   - dht11/temperature
-   - dht11/humidity
-   - all
-   - status
+
+- hall/raw
+- hall/voltage
+- sound/raw
+- sound/level
+- sound/peak_to_peak
+- all
+- status
 
 #### Option B: Mosquitto Command Line
 
 **Subscribe to all topics:**
 
 ```bash
-mosquitto_sub -h broker.hivemq.com -t "esp32/weather/#" -v
+mosquitto_sub -h broker.hivemq.com -t "esp32/sensors/#" -v
 ```
 
 **Expected output:**
 
 ```
-esp32/weather/bme280/temperature 23.45
-esp32/weather/bme280/humidity 65.30
-esp32/weather/bme280/pressure 1013.25
-esp32/weather/dht11/temperature 24.00
-esp32/weather/dht11/humidity 60.00
+esp32/sensors/hall/raw 2310
+esp32/sensors/hall/voltage 1.86
+esp32/sensors/sound/raw 2075
+esp32/sensors/sound/level 18.40
+esp32/sensors/sound/peak_to_peak 210
 ```
 
 **Test LED control:**
 
 ```bash
 # Turn on
-mosquitto_pub -h broker.hivemq.com -t "esp32/weather/led/control" -m "on"
+mosquitto_pub -h broker.hivemq.com -t "esp32/sensors/led/control" -m "on"
 
 # Turn off
-mosquitto_pub -h broker.hivemq.com -t "esp32/weather/led/control" -m "off"
+mosquitto_pub -h broker.hivemq.com -t "esp32/sensors/led/control" -m "off"
 
 # Toggle
-mosquitto_pub -h broker.hivemq.com -t "esp32/weather/led/control" -m "toggle"
+mosquitto_pub -h broker.hivemq.com -t "esp32/sensors/led/control" -m "toggle"
 
 # Blink
-mosquitto_pub -h broker.hivemq.com -t "esp32/weather/led/control" -m "blink,5,300"
+mosquitto_pub -h broker.hivemq.com -t "esp32/sensors/led/control" -m "blink,5,300"
 ```
 
 #### Option C: Python Test Script
@@ -464,8 +461,8 @@ PORT = 1883
 
 def on_connect(client, userdata, flags, rc):
     print(f"Connected with result code {rc}")
-    client.subscribe("esp32/weather/#")
-    print("Subscribed to esp32/weather/#")
+    client.subscribe("esp32/sensors/#")
+    print("Subscribed to esp32/sensors/#")
 
 def on_message(client, userdata, msg):
     print(f"📩 {msg.topic}: {msg.payload.decode()}")
@@ -492,19 +489,19 @@ while True:
     cmd = input("Enter command: ")
 
     if cmd == "1":
-        client.publish("esp32/weather/led/control", "on")
+        client.publish("esp32/sensors/led/control", "on")
         print("✅ LED ON command sent")
     elif cmd == "2":
-        client.publish("esp32/weather/led/control", "off")
+        client.publish("esp32/sensors/led/control", "off")
         print("✅ LED OFF command sent")
     elif cmd == "3":
-        client.publish("esp32/weather/led/control", "toggle")
+        client.publish("esp32/sensors/led/control", "toggle")
         print("✅ LED Toggle command sent")
     elif cmd == "4":
-        client.publish("esp32/weather/led/control", "blink,5,500")
+        client.publish("esp32/sensors/led/control", "blink,5,500")
         print("✅ LED Blink command sent")
     elif cmd == "5":
-        client.publish("esp32/weather/config/interval", "5000")
+        client.publish("esp32/sensors/config/interval", "5000")
         print("✅ Interval changed to 5 seconds")
     elif cmd == "q":
         break
@@ -534,7 +531,7 @@ Make topics unique by adding device ID:
 ```cpp
 String deviceId = String(ESP.getEfuseMac(), HEX);
 
-String topic_bme_temp = "esp32/" + deviceId + "/bme280/temperature";
+String topic_hall_raw = "esp32/" + deviceId + "/hall/raw";
 String topic_led_control = "esp32/" + deviceId + "/led/control";
 // ... update all topics
 ```
@@ -546,7 +543,7 @@ String topic_led_control = "esp32/" + deviceId + "/led/control";
 mqttClient.subscribe(topic_led_control, 1);  // QoS 1
 
 // When publishing:
-mqttClient.publish(topic_bme_temp, tempStr, false, 0);  // QoS 0
+mqttClient.publish(topic_hall_raw, hallStr, false, 0);  // QoS 0
 mqttClient.publish(topic_status, statusJson, true, 1);  // QoS 1, retained
 ```
 
@@ -754,19 +751,13 @@ void loadCredentials() {
 ```yaml
 mqtt:
   sensor:
-    - name: "ESP32 Temperature"
-      state_topic: "esp32/weather/bme280/temperature"
-      unit_of_measurement: "°C"
-      device_class: "temperature"
-
-    - name: "ESP32 Humidity"
-      state_topic: "esp32/weather/bme280/humidity"
-      unit_of_measurement: "%"
-      device_class: "humidity"
+    - name: "ESP32 Hall Voltage"
+      state_topic: "esp32/sensors/hall/voltage"
+      unit_of_measurement: "V"
 
   switch:
     - name: "ESP32 LED"
-      command_topic: "esp32/weather/led/control"
+      command_topic: "esp32/sensors/led/control"
       payload_on: "on"
       payload_off: "off"
 ```
@@ -780,7 +771,7 @@ Import this JSON:
   {
     "id": "mqtt-in",
     "type": "mqtt in",
-    "topic": "esp32/weather/#",
+    "topic": "esp32/sensors/#",
     "broker": "broker_config"
   },
   { "id": "debug", "type": "debug", "name": "" }
