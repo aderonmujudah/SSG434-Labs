@@ -41,24 +41,13 @@
 // CONFIGURATION
 // ============================================================================
 
-// Sensitivity Settings (lower = more sensitive)
-#define TOUCH_THRESHOLD_PERCENT  70    // % of baseline for touch detection
-#define HOVER_THRESHOLD_PERCENT  85    // % of baseline for proximity detection
-
-// Touch Duration Thresholds (milliseconds)
-#define QUICK_PRESS_MAX     1000   // < 1 second
-#define MEDIUM_PRESS_MIN    1000   // 1-3 seconds
-#define MEDIUM_PRESS_MAX    3000
-#define LONG_PRESS_MIN      3000   // 3-5 seconds
-#define LONG_PRESS_MAX      5000
-#define VERY_LONG_PRESS_MIN 5000   // > 5 seconds
+// Sensitivity Settings
+#define TOUCH_DROP_THRESHOLD 8     // LED turns on when value drops by this amount
 
 // Calibration
 #define CALIBRATION_SAMPLES  50    // Number of samples for baseline
 #define CALIBRATION_DELAY    20    // ms between samples
 #define CALIBRATION_TIMEOUT  3000  // ms max per sensor calibration
-#define CALIBRATE_ON_BOOT    0     // 0 = skip auto-calibration at boot
-#define DEFAULT_BASELINE     50    // Fallback baseline when skipping calibration
 
 // Monitoring
 #define MONITOR_INTERVAL     100   // ms between value prints
@@ -68,24 +57,12 @@
 // TOUCH SENSOR STRUCTURE
 // ============================================================================
 
-// LED Pattern Types (declare early for Arduino's auto-generated prototypes)
-enum Pattern {
-  PATTERN_QUICK,      // Single blink
-  PATTERN_MEDIUM,     // Double blink
-  PATTERN_LONG,       // Triple blink
-  PATTERN_VERY_LONG   // Rapid flash
-};
-
 struct TouchSensor {
   uint8_t pin;              // GPIO pin number
   uint8_t touchNum;         // Touch channel (T0-T9)
-  uint16_t baseline;        // Calibrated baseline (untouched)
+  uint16_t baseline;        // Calibrated minimum value (untouched)
   uint16_t currentValue;    // Current touch reading
-  uint16_t touchThreshold;  // Threshold for touch detection
-  uint16_t hoverThreshold;  // Threshold for proximity detection
   bool isTouched;           // Current touch state
-  bool wasHovering;         // Previous hover state
-  unsigned long touchStartTime;  // When touch began
   unsigned long lastDebounceTime; // For debouncing
   uint8_t ledPin;           // Associated LED
   const char* name;         // Sensor name for display
@@ -93,9 +70,9 @@ struct TouchSensor {
 
 // Three touch sensors
 TouchSensor sensors[3] = {
-  {TOUCH_PIN_1, 0, 0, 0, 0, 0, false, false, 0, 0, LED_1, "Sensor 1"},
-  {TOUCH_PIN_2, 7, 0, 0, 0, 0, false, false, 0, 0, LED_2, "Sensor 2"},
-  {TOUCH_PIN_3, 9, 0, 0, 0, 0, false, false, 0, 0, LED_3, "Sensor 3"}
+  {TOUCH_PIN_1, 0, 0, 0, false, 0, LED_1, "Sensor 1"},
+  {TOUCH_PIN_2, 7, 0, 0, false, 0, LED_2, "Sensor 2"},
+  {TOUCH_PIN_3, 9, 0, 0, false, 0, LED_3, "Sensor 3"}
 };
 
 // ============================================================================
@@ -109,10 +86,6 @@ bool monitoringEnabled = true;
 // Persist calibration across soft resets
 RTC_DATA_ATTR bool hasCalibration = false;
 RTC_DATA_ATTR uint16_t storedBaseline[3] = {0, 0, 0};
-RTC_DATA_ATTR uint16_t storedTouchThreshold[3] = {0, 0, 0};
-RTC_DATA_ATTR uint16_t storedHoverThreshold[3] = {0, 0, 0};
-
-void applyDefaultCalibration();
 
 // ============================================================================
 // SETUP
@@ -174,11 +147,9 @@ void setup() {
     // Restore calibration stored in RTC RAM (survives soft resets / sleep)
     for (int i = 0; i < 3; i++) {
       sensors[i].baseline = storedBaseline[i];
-      sensors[i].touchThreshold = storedTouchThreshold[i];
-      sensors[i].hoverThreshold = storedHoverThreshold[i];
     }
     Serial.println("Using stored calibration (skipping recalibration)");
-  } else if (CALIBRATE_ON_BOOT) {
+  } else {
     Serial.println("═══════════════════════════════════════");
     Serial.println("Starting Calibration...");
     Serial.println("═══════════════════════════════════════");
@@ -188,14 +159,8 @@ void setup() {
     calibrateSensors();
     for (int i = 0; i < 3; i++) {
       storedBaseline[i] = sensors[i].baseline;
-      storedTouchThreshold[i] = sensors[i].touchThreshold;
-      storedHoverThreshold[i] = sensors[i].hoverThreshold;
     }
     hasCalibration = true;
-  } else {
-    applyDefaultCalibration();
-    hasCalibration = true;  // Prevent pointless re-entry on next soft reset
-    Serial.println("Using default calibration (no auto-calibration)");
   }
   
   Serial.println();
@@ -207,12 +172,10 @@ void setup() {
   displayCalibrationResults();
   
   Serial.println();
-  Serial.println("Touch Pattern Guide:");
-  Serial.println("  • Quick Tap (<1s):    Single blink");
-  Serial.println("  • Medium Hold (1-3s): Double blink");
-  Serial.println("  • Long Hold (3-5s):   Triple blink");
-  Serial.println("  • Very Long (>5s):    Rapid flash");
-  Serial.println("  • Hover (proximity):  Dim LED");
+  Serial.println("Touch Rule:");
+  Serial.print("  • LED ON when value <= baseline - ");
+  Serial.print(TOUCH_DROP_THRESHOLD);
+  Serial.println();
   Serial.println();
   Serial.println("Commands:");
   Serial.println("  • Type 'r' to recalibrate");
@@ -269,7 +232,6 @@ void calibrateSensor(TouchSensor* sensor) {
   unsigned long startTime = millis();
   unsigned long sum = 0;
   uint16_t minVal = 65535;
-  uint16_t maxVal = 0;
   uint16_t samplesTaken = 0;
   
   // Collect samples
@@ -284,7 +246,6 @@ void calibrateSensor(TouchSensor* sensor) {
     samplesTaken++;
     
     if (value < minVal) minVal = value;
-    if (value > maxVal) maxVal = value;
     
     delay(CALIBRATION_DELAY);
     yield();
@@ -295,46 +256,34 @@ void calibrateSensor(TouchSensor* sensor) {
     }
   }
   
-  // Calculate baseline (average)
+  // Use the minimum observed value as the baseline
   if (samplesTaken == 0) {
-    samplesTaken = 1;
+    minVal = 0;
   }
-  sensor->baseline = sum / samplesTaken;
-  
-  // Calculate thresholds
-  sensor->touchThreshold = (sensor->baseline * TOUCH_THRESHOLD_PERCENT) / 100;
-  sensor->hoverThreshold = (sensor->baseline * HOVER_THRESHOLD_PERCENT) / 100;
+  sensor->baseline = minVal;
   
   Serial.println(" Done!");
-  Serial.print("    Baseline: ");
+  Serial.print("    Baseline (min): ");
   Serial.print(sensor->baseline);
-  Serial.print(" (Range: ");
-  Serial.print(minVal);
-  Serial.print("-");
-  Serial.print(maxVal);
-  Serial.println(")");
+  Serial.println();
 }
 
 void displayCalibrationResults() {
   Serial.println("Calibration Results:");
   Serial.println();
-  Serial.println("┌──────────┬──────────┬────────────┬────────────┐");
-  Serial.println("│ Sensor   │ Baseline │ Touch (<)  │ Hover (<)  │");
-  Serial.println("├──────────┼──────────┼────────────┼────────────┤");
+  Serial.println("┌──────────┬──────────┐");
+  Serial.println("│ Sensor   │ Baseline │");
+  Serial.println("├──────────┼──────────┤");
   
   for (int i = 0; i < 3; i++) {
     Serial.print("│ ");
     Serial.print(sensors[i].name);
     Serial.print("  │ ");
     printPaddedNumber(sensors[i].baseline, 8);
-    Serial.print(" │ ");
-    printPaddedNumber(sensors[i].touchThreshold, 10);
-    Serial.print(" │ ");
-    printPaddedNumber(sensors[i].hoverThreshold, 10);
     Serial.println(" │");
   }
-  
-  Serial.println("└──────────┴──────────┴────────────┴────────────┘");
+
+  Serial.println("└──────────┴──────────┘");
 }
 
 // ============================================================================
@@ -345,148 +294,27 @@ void updateSensor(TouchSensor* sensor) {
   // Read current touch value
   sensor->currentValue = touchRead(sensor->pin);
   
-  // Detect touch state
-  bool isCurrentlyTouched = sensor->currentValue < sensor->touchThreshold;
+  // Detect touch state based on drop from calibrated minimum
+  bool isCurrentlyTouched = sensor->currentValue + TOUCH_DROP_THRESHOLD <= sensor->baseline;
   
   // Debounce logic
   if (isCurrentlyTouched != sensor->isTouched) {
     if ((millis() - sensor->lastDebounceTime) > DEBOUNCE_TIME) {
-      // State change confirmed
-      if (isCurrentlyTouched && !sensor->isTouched) {
-        // Touch started
-        handleTouchStart(sensor);
-      } else if (!isCurrentlyTouched && sensor->isTouched) {
-        // Touch released
-        handleTouchRelease(sensor);
-      }
-      
       sensor->isTouched = isCurrentlyTouched;
       sensor->lastDebounceTime = millis();
+
+      Serial.print("\n[");
+      Serial.print(isCurrentlyTouched ? "TOUCH" : "RELEASE");
+      Serial.print("] ");
+      Serial.print(sensor->name);
+      Serial.print(" (value: ");
+      Serial.print(sensor->currentValue);
+      Serial.println(")");
     }
   }
   
-  // Check for hovering (proximity detection)
-  bool isHovering = !sensor->isTouched && 
-                    sensor->currentValue < sensor->hoverThreshold &&
-                    sensor->currentValue >= sensor->touchThreshold;
-  
-  if (isHovering != sensor->wasHovering) {
-    if (isHovering) {
-      handleHoverStart(sensor);
-    } else {
-      handleHoverEnd(sensor);
-    }
-    sensor->wasHovering = isHovering;
-  }
-}
-
-void handleTouchStart(TouchSensor* sensor) {
-  sensor->touchStartTime = millis();
-  
-  Serial.print("\n[TOUCH START] ");
-  Serial.print(sensor->name);
-  Serial.print(" touched (value: ");
-  Serial.print(sensor->currentValue);
-  Serial.println(")");
-  
-  // Turn on LED immediately
-  digitalWrite(sensor->ledPin, HIGH);
-}
-
-void handleTouchRelease(TouchSensor* sensor) {
-  unsigned long touchDuration = millis() - sensor->touchStartTime;
-  
-  Serial.print("[TOUCH END] ");
-  Serial.print(sensor->name);
-  Serial.print(" released after ");
-  Serial.print(touchDuration);
-  Serial.println(" ms");
-  
-  // Determine touch duration category and trigger pattern
-  if (touchDuration < QUICK_PRESS_MAX) {
-    Serial.println("  → Quick tap detected");
-    playPattern(sensor->ledPin, PATTERN_QUICK);
-  } else if (touchDuration < MEDIUM_PRESS_MAX) {
-    Serial.println("  → Medium hold detected");
-    playPattern(sensor->ledPin, PATTERN_MEDIUM);
-  } else if (touchDuration < LONG_PRESS_MAX) {
-    Serial.println("  → Long hold detected");
-    playPattern(sensor->ledPin, PATTERN_LONG);
-  } else {
-    Serial.println("  → Very long hold detected");
-    playPattern(sensor->ledPin, PATTERN_VERY_LONG);
-  }
-  
-  Serial.println();
-}
-
-void handleHoverStart(TouchSensor* sensor) {
-  Serial.print("[PROXIMITY] ");
-  Serial.print(sensor->name);
-  Serial.print(" - Hovering detected (value: ");
-  Serial.print(sensor->currentValue);
-  Serial.println(")");
-  
-  // Dim LED for hover effect (using PWM)
-  analogWrite(sensor->ledPin, 50);  // Low brightness
-}
-
-void handleHoverEnd(TouchSensor* sensor) {
-  Serial.print("[PROXIMITY] ");
-  Serial.print(sensor->name);
-  Serial.println(" - Hover ended");
-  
-  // Turn off LED
-  digitalWrite(sensor->ledPin, LOW);
-}
-
-// ============================================================================
-// LED PATTERN FUNCTIONS
-// ============================================================================
-
-void playPattern(uint8_t ledPin, Pattern pattern) {
-  // Turn off LED first
-  digitalWrite(ledPin, LOW);
-  delay(200);
-  
-  switch (pattern) {
-    case PATTERN_QUICK:
-      // Single blink
-      digitalWrite(ledPin, HIGH);
-      delay(300);
-      digitalWrite(ledPin, LOW);
-      break;
-      
-    case PATTERN_MEDIUM:
-      // Double blink
-      for (int i = 0; i < 2; i++) {
-        digitalWrite(ledPin, HIGH);
-        delay(200);
-        digitalWrite(ledPin, LOW);
-        delay(200);
-      }
-      break;
-      
-    case PATTERN_LONG:
-      // Triple blink
-      for (int i = 0; i < 3; i++) {
-        digitalWrite(ledPin, HIGH);
-        delay(200);
-        digitalWrite(ledPin, LOW);
-        delay(200);
-      }
-      break;
-      
-    case PATTERN_VERY_LONG:
-      // Rapid flash (10 times)
-      for (int i = 0; i < 10; i++) {
-        digitalWrite(ledPin, HIGH);
-        delay(50);
-        digitalWrite(ledPin, LOW);
-        delay(50);
-      }
-      break;
-  }
+  // LED mirrors touch state
+  digitalWrite(sensor->ledPin, sensor->isTouched ? HIGH : LOW);
 }
 
 // ============================================================================
@@ -523,8 +351,6 @@ void displayTouchValues() {
 void printTouchIndicator(TouchSensor* sensor) {
   if (sensor->isTouched) {
     Serial.print("[TOUCH]");
-  } else if (sensor->wasHovering) {
-    Serial.print("[HOVER]");
   } else {
     Serial.print("[     ]");
   }
@@ -553,8 +379,6 @@ void handleCommand(char cmd) {
       calibrateSensors();
       for (int i = 0; i < 3; i++) {
         storedBaseline[i] = sensors[i].baseline;
-        storedTouchThreshold[i] = sensors[i].touchThreshold;
-        storedHoverThreshold[i] = sensors[i].hoverThreshold;
       }
       hasCalibration = true;
       Serial.println("\n✓ Calibration complete!\n");
@@ -584,15 +408,9 @@ void handleCommand(char cmd) {
         Serial.println(sensors[i].currentValue);
         Serial.print("  Baseline: ");
         Serial.println(sensors[i].baseline);
-        Serial.print("  Touch <:  ");
-        Serial.println(sensors[i].touchThreshold);
-        Serial.print("  Hover <:  ");
-        Serial.println(sensors[i].hoverThreshold);
         Serial.print("  State:    ");
         if (sensors[i].isTouched) {
           Serial.println("TOUCHED");
-        } else if (sensors[i].wasHovering) {
-          Serial.println("HOVERING");
         } else {
           Serial.println("IDLE");
         }
@@ -620,47 +438,4 @@ void printHelp() {
   Serial.println("═══════════════════════════════════════\n");
 }
 
-void applyDefaultCalibration() {
-  for (int i = 0; i < 3; i++) {
-    sensors[i].baseline = DEFAULT_BASELINE;
-    sensors[i].touchThreshold = (sensors[i].baseline * TOUCH_THRESHOLD_PERCENT) / 100;
-    sensors[i].hoverThreshold = (sensors[i].baseline * HOVER_THRESHOLD_PERCENT) / 100;
-  }
-}
-
 // ============================================================================
-// SENSITIVITY ADJUSTMENT (Advanced)
-// ============================================================================
-
-// Call this function to adjust sensitivity dynamically
-void adjustSensitivity(int percentChange) {
-  Serial.println("\n═══════════════════════════════════════");
-  Serial.print("Adjusting sensitivity by ");
-  Serial.print(percentChange);
-  Serial.println("%");
-  Serial.println("═══════════════════════════════════════");
-  
-  for (int i = 0; i < 3; i++) {
-    int newTouchPercent = TOUCH_THRESHOLD_PERCENT + percentChange;
-    int newHoverPercent = HOVER_THRESHOLD_PERCENT + percentChange;
-    
-    // Clamp values
-    newTouchPercent = constrain(newTouchPercent, 50, 90);
-    newHoverPercent = constrain(newHoverPercent, 70, 95);
-    
-    sensors[i].touchThreshold = (sensors[i].baseline * newTouchPercent) / 100;
-    sensors[i].hoverThreshold = (sensors[i].baseline * newHoverPercent) / 100;
-    
-    Serial.print(sensors[i].name);
-    Serial.print(": Touch<");
-    Serial.print(sensors[i].touchThreshold);
-    Serial.print(", Hover<");
-    Serial.println(sensors[i].hoverThreshold);
-  }
-  
-  Serial.println("═══════════════════════════════════════\n");
-}
-
-// Example usage (uncomment and call from loop or command):
-// adjustSensitivity(-5);  // Make more sensitive (lower threshold)
-// adjustSensitivity(+5);  // Make less sensitive (higher threshold)
