@@ -41,9 +41,9 @@ This guide covers common problems you may encounter with ESP32 dual-core program
 
    ```cpp
    // Verify these match your wiring:
-   #define LED_CORE0    13
-   #define LED_CORE1    12
-   #define LED_SHARED   14
+   #define LED_CORE0    2
+   #define LED_CORE1    4
+   #define LED_SHARED   5
    ```
 
 3. **Damaged components**
@@ -64,11 +64,11 @@ ESP32 3.3V ──[220Ω]──LED──GND
 
 ```cpp
 void setup() {
-    pinMode(13, OUTPUT);
+   pinMode(2, OUTPUT);
     for(;;) {
-        digitalWrite(13, HIGH);
+      digitalWrite(2, HIGH);
         delay(500);
-        digitalWrite(13, LOW);
+      digitalWrite(2, LOW);
         delay(500);
     }
 }

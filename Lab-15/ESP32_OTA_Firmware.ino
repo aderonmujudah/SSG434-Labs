@@ -7,12 +7,12 @@
  * - Web-based OTA via HTTP upload
  * - Version tracking and display
  * - Update progress monitoring
- * - LED status indicator
+ * - LED status indicator (built-in)
  * - Automatic rollback on failed updates
  * 
  * Hardware:
  * - ESP32 Development Board
- * - LED on GPIO 12 (with 220Ω resistor)
+ * - Built-in LED on GPIO 2
  * 
  * Version: 1.0.0
  * Last Updated: 2026-02-28
@@ -39,8 +39,10 @@ const char* ota_hostname = "ESP32-OTA";
 const char* ota_password = "admin123";  // Password for Arduino IDE OTA
 
 // ============ Hardware Configuration ============
-#define LED_PIN 12
-#define LED_BUILTIN 2  // Built-in LED for additional status
+#ifndef LED_BUILTIN
+#define LED_BUILTIN 2
+#endif
+#define LED_PIN LED_BUILTIN
 
 // ============ Global Objects ============
 WebServer server(80);
@@ -450,11 +452,9 @@ void setup() {
   Serial.println(BUILD_TIME);
   Serial.println();
   
-  // Initialize LED pins
+  // Initialize built-in LED
   pinMode(LED_PIN, OUTPUT);
-  pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
-  digitalWrite(LED_BUILTIN, LOW);
   
   // Startup LED sequence
   startupSequence();
@@ -492,7 +492,7 @@ void loop() {
   if (currentMillis - lastBlink >= blinkInterval) {
     lastBlink = currentMillis;
     ledState = !ledState;
-    digitalWrite(LED_BUILTIN, ledState);
+    digitalWrite(LED_PIN, ledState);
   }
 }
 
@@ -747,10 +747,8 @@ void startupSequence() {
   // Visual startup sequence
   for (int i = 0; i < 3; i++) {
     digitalWrite(LED_PIN, HIGH);
-    digitalWrite(LED_BUILTIN, HIGH);
     delay(200);
     digitalWrite(LED_PIN, LOW);
-    digitalWrite(LED_BUILTIN, LOW);
     delay(200);
   }
 }

@@ -15,7 +15,7 @@
  * 
  * Hardware:
  * - ESP32 Development Board
- * - LED on GPIO 12 (with 220Ω resistor)
+ * - Built-in LED on GPIO 2
  * 
  * Version: 2.0.0
  * Last Updated: 2026-02-28
@@ -42,8 +42,10 @@ const char* ota_hostname = "ESP32-OTA";
 const char* ota_password = "admin123";
 
 // ============ Hardware Configuration ============
-#define LED_PIN 12
+#ifndef LED_BUILTIN
 #define LED_BUILTIN 2
+#endif
+#define LED_PIN LED_BUILTIN
 
 // ============ Global Objects ============
 WebServer server(80);
@@ -497,11 +499,9 @@ void setup() {
   Serial.println("  • Enhanced UI design");
   Serial.println();
   
-  // Initialize LED pins
-  pinMode(LED_PIN, OUTPUT);
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
-  digitalWrite(LED_BUILTIN, LOW);
+    // Initialize built-in LED
+    pinMode(LED_PIN, OUTPUT);
+    digitalWrite(LED_PIN, LOW);
   
   // Enhanced startup sequence
   rainbowStartup();
@@ -536,7 +536,7 @@ void loop() {
   if (currentMillis - lastBlink >= blinkInterval) {
     lastBlink = currentMillis;
     ledState = !ledState;
-    digitalWrite(LED_BUILTIN, ledState);
+    digitalWrite(LED_PIN, ledState);
   }
 }
 
@@ -741,15 +741,12 @@ void setupWebServer() {
 // NEW: Rainbow startup sequence
 void rainbowStartup() {
   Serial.println("🌈 Rainbow Startup Sequence...");
-  for (int i = 0; i < 10; i++) {
-    digitalWrite(LED_PIN, HIGH);
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(100);
-    digitalWrite(LED_PIN, LOW);
-    digitalWrite(LED_BUILTIN, HIGH);
-    delay(100);
-  }
-  digitalWrite(LED_BUILTIN, LOW);
+    for (int i = 0; i < 10; i++) {
+        digitalWrite(LED_PIN, HIGH);
+        delay(100);
+        digitalWrite(LED_PIN, LOW);
+        delay(100);
+    }
 }
 
 String getUptime() {

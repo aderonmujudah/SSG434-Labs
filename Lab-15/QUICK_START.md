@@ -18,20 +18,11 @@ Get wireless firmware updates working in **10 minutes**! ⚡
 ### What You Need
 
 - ESP32 board
-- LED
-- 220Ω resistor
-- Breadboard
-- Jumper wires
 - USB cable (for initial upload only)
 
 ### Quick Wiring
 
-```
-ESP32 GPIO 12 → [220Ω] → LED + (long leg)
-                          LED - (short leg) → GND
-```
-
-That's it! Simple circuit. ✅
+No external LED required. The built-in ESP32 LED is used for all patterns.
 
 ---
 

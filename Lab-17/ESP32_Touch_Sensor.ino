@@ -27,9 +27,10 @@
 // ============================================================================
 
 // Touch Sensor Pins (ESP32 Touch-capable GPIOs)
+// Switched to pins that are less likely to interfere with boot/strapping.
 #define TOUCH_PIN_1      4      // T0
-#define TOUCH_PIN_2      2      // T2
-#define TOUCH_PIN_3      15     // T3
+#define TOUCH_PIN_2      27     // T7
+#define TOUCH_PIN_3      32     // T9
 
 // LED Pins (same as Lab-16)
 #define LED_1            13
@@ -55,6 +56,9 @@
 // Calibration
 #define CALIBRATION_SAMPLES  50    // Number of samples for baseline
 #define CALIBRATION_DELAY    20    // ms between samples
+#define CALIBRATION_TIMEOUT  3000  // ms max per sensor calibration
+#define CALIBRATE_ON_BOOT    0     // 0 = skip auto-calibration at boot
+#define DEFAULT_BASELINE     50    // Fallback baseline when skipping calibration
 
 // Monitoring
 #define MONITOR_INTERVAL     100   // ms between value prints
@@ -63,6 +67,14 @@
 // ============================================================================
 // TOUCH SENSOR STRUCTURE
 // ============================================================================
+
+// LED Pattern Types (declare early for Arduino's auto-generated prototypes)
+enum Pattern {
+  PATTERN_QUICK,      // Single blink
+  PATTERN_MEDIUM,     // Double blink
+  PATTERN_LONG,       // Triple blink
+  PATTERN_VERY_LONG   // Rapid flash
+};
 
 struct TouchSensor {
   uint8_t pin;              // GPIO pin number
@@ -82,8 +94,8 @@ struct TouchSensor {
 // Three touch sensors
 TouchSensor sensors[3] = {
   {TOUCH_PIN_1, 0, 0, 0, 0, 0, false, false, 0, 0, LED_1, "Sensor 1"},
-  {TOUCH_PIN_2, 2, 0, 0, 0, 0, false, false, 0, 0, LED_2, "Sensor 2"},
-  {TOUCH_PIN_3, 3, 0, 0, 0, 0, false, false, 0, 0, LED_3, "Sensor 3"}
+  {TOUCH_PIN_2, 7, 0, 0, 0, 0, false, false, 0, 0, LED_2, "Sensor 2"},
+  {TOUCH_PIN_3, 9, 0, 0, 0, 0, false, false, 0, 0, LED_3, "Sensor 3"}
 };
 
 // ============================================================================
@@ -93,6 +105,14 @@ TouchSensor sensors[3] = {
 unsigned long lastMonitorTime = 0;
 bool calibrationComplete = false;
 bool monitoringEnabled = true;
+
+// Persist calibration across soft resets
+RTC_DATA_ATTR bool hasCalibration = false;
+RTC_DATA_ATTR uint16_t storedBaseline[3] = {0, 0, 0};
+RTC_DATA_ATTR uint16_t storedTouchThreshold[3] = {0, 0, 0};
+RTC_DATA_ATTR uint16_t storedHoverThreshold[3] = {0, 0, 0};
+
+void applyDefaultCalibration();
 
 // ============================================================================
 // SETUP
@@ -122,7 +142,7 @@ void setup() {
   
   Serial.println("✓ LEDs initialized");
   Serial.println();
-  
+
   // Display touch pin information
   Serial.println("Touch Sensor Configuration:");
   for (int i = 0; i < 3; i++) {
@@ -136,17 +156,47 @@ void setup() {
     Serial.println(sensors[i].ledPin);
   }
   Serial.println();
-  
-  // Perform calibration
-  Serial.println("═══════════════════════════════════════");
-  Serial.println("Starting Calibration...");
-  Serial.println("═══════════════════════════════════════");
-  Serial.println("⚠️  DO NOT TOUCH sensors during calibration!");
+
+  // Initialize touch hardware BEFORE any touchRead() call.
+  // Without this, touchRead() can block indefinitely and trigger a WDT reset.
+  touchSetCycles(0x1000, 0x1000);
+  delay(100);
+  // Discard first reading on each pin (hardware warm-up)
+  for (int i = 0; i < 3; i++) {
+    touchRead(sensors[i].pin);
+    delay(20);
+  }
+  Serial.println("✓ Touch hardware initialized");
   Serial.println();
-  
-  delay(2000);  // Give user time to read warning
-  
-  calibrateSensors();
+
+  // Calibration — runs at most once per power cycle (guarded by hasCalibration in RTC RAM)
+  if (hasCalibration) {
+    // Restore calibration stored in RTC RAM (survives soft resets / sleep)
+    for (int i = 0; i < 3; i++) {
+      sensors[i].baseline = storedBaseline[i];
+      sensors[i].touchThreshold = storedTouchThreshold[i];
+      sensors[i].hoverThreshold = storedHoverThreshold[i];
+    }
+    Serial.println("Using stored calibration (skipping recalibration)");
+  } else if (CALIBRATE_ON_BOOT) {
+    Serial.println("═══════════════════════════════════════");
+    Serial.println("Starting Calibration...");
+    Serial.println("═══════════════════════════════════════");
+    Serial.println("DO NOT TOUCH sensors during calibration!");
+    Serial.println();
+    delay(2000);
+    calibrateSensors();
+    for (int i = 0; i < 3; i++) {
+      storedBaseline[i] = sensors[i].baseline;
+      storedTouchThreshold[i] = sensors[i].touchThreshold;
+      storedHoverThreshold[i] = sensors[i].hoverThreshold;
+    }
+    hasCalibration = true;
+  } else {
+    applyDefaultCalibration();
+    hasCalibration = true;  // Prevent pointless re-entry on next soft reset
+    Serial.println("Using default calibration (no auto-calibration)");
+  }
   
   Serial.println();
   Serial.println("═══════════════════════════════════════");
@@ -216,19 +266,28 @@ void calibrateSensor(TouchSensor* sensor) {
   Serial.print(sensor->name);
   Serial.print("... ");
   
+  unsigned long startTime = millis();
   unsigned long sum = 0;
   uint16_t minVal = 65535;
   uint16_t maxVal = 0;
+  uint16_t samplesTaken = 0;
   
   // Collect samples
   for (int i = 0; i < CALIBRATION_SAMPLES; i++) {
+    if (millis() - startTime > CALIBRATION_TIMEOUT) {
+      Serial.print("!timeout!");
+      break;
+    }
+
     uint16_t value = touchRead(sensor->pin);
     sum += value;
+    samplesTaken++;
     
     if (value < minVal) minVal = value;
     if (value > maxVal) maxVal = value;
     
     delay(CALIBRATION_DELAY);
+    yield();
     
     // Visual progress indicator
     if (i % 10 == 0) {
@@ -237,7 +296,10 @@ void calibrateSensor(TouchSensor* sensor) {
   }
   
   // Calculate baseline (average)
-  sensor->baseline = sum / CALIBRATION_SAMPLES;
+  if (samplesTaken == 0) {
+    samplesTaken = 1;
+  }
+  sensor->baseline = sum / samplesTaken;
   
   // Calculate thresholds
   sensor->touchThreshold = (sensor->baseline * TOUCH_THRESHOLD_PERCENT) / 100;
@@ -382,13 +444,6 @@ void handleHoverEnd(TouchSensor* sensor) {
 // LED PATTERN FUNCTIONS
 // ============================================================================
 
-enum Pattern {
-  PATTERN_QUICK,      // Single blink
-  PATTERN_MEDIUM,     // Double blink
-  PATTERN_LONG,       // Triple blink
-  PATTERN_VERY_LONG   // Rapid flash
-};
-
 void playPattern(uint8_t ledPin, Pattern pattern) {
   // Turn off LED first
   digitalWrite(ledPin, LOW);
@@ -490,13 +545,19 @@ void handleCommand(char cmd) {
     case 'r':
     case 'R':
       Serial.println("\n\n═══════════════════════════════════════");
-      Serial.println("Recalibrating sensors...");
+      Serial.println("Manual recalibration...");
       Serial.println("═══════════════════════════════════════");
-      Serial.println("⚠️  DO NOT TOUCH sensors!");
+      Serial.println("DO NOT TOUCH sensors!");
       Serial.println();
       delay(2000);
       calibrateSensors();
-      Serial.println("\n✓ Recalibration complete!\n");
+      for (int i = 0; i < 3; i++) {
+        storedBaseline[i] = sensors[i].baseline;
+        storedTouchThreshold[i] = sensors[i].touchThreshold;
+        storedHoverThreshold[i] = sensors[i].hoverThreshold;
+      }
+      hasCalibration = true;
+      Serial.println("\n✓ Calibration complete!\n");
       displayCalibrationResults();
       Serial.println();
       break;
@@ -557,6 +618,14 @@ void printHelp() {
   Serial.println("  s - Show current values");
   Serial.println("  h - Show this help");
   Serial.println("═══════════════════════════════════════\n");
+}
+
+void applyDefaultCalibration() {
+  for (int i = 0; i < 3; i++) {
+    sensors[i].baseline = DEFAULT_BASELINE;
+    sensors[i].touchThreshold = (sensors[i].baseline * TOUCH_THRESHOLD_PERCENT) / 100;
+    sensors[i].hoverThreshold = (sensors[i].baseline * HOVER_THRESHOLD_PERCENT) / 100;
+  }
 }
 
 // ============================================================================

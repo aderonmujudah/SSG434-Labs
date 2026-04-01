@@ -33,9 +33,9 @@ This lab demonstrates advanced ESP32 dual-core programming using FreeRTOS. Learn
 
 | Component      | GPIO Pin | Description                        |
 | -------------- | -------- | ---------------------------------- |
-| LED 1 (Core 0) | 13       | Fast blink pattern (200ms)         |
-| LED 2 (Core 1) | 12       | Slow blink pattern (500ms)         |
-| LED 3 (Shared) | 14       | Mutex-protected shared LED         |
+| LED 1 (Core 0) | 2        | Fast blink pattern (200ms)         |
+| LED 2 (Core 1) | 4        | Slow blink pattern (500ms)         |
+| LED 3 (Shared) | 5        | Mutex-protected shared LED         |
 | Button 1       | 18       | Triggers event, flashes shared LED |
 | Button 2       | 19       | Resets shared counter              |
 
@@ -47,9 +47,9 @@ This lab demonstrates advanced ESP32 dual-core programming using FreeRTOS. Learn
 
 ```
 ESP32                  LEDs
-GPIO 13 ----[220Ω]----LED1----GND
-GPIO 12 ----[220Ω]----LED2----GND
-GPIO 14 ----[220Ω]----LED3----GND
+GPIO 2  ----[220Ω]----LED1----GND
+GPIO 4  ----[220Ω]----LED2----GND
+GPIO 5  ----[220Ω]----LED3----GND
 ```
 
 ### Button Connections
@@ -127,25 +127,25 @@ Creating shared tasks...
 ✓ All tasks created and started!
 
 System Status:
-  - LED on GPIO 13: Fast blink (Core 0)
-  - LED on GPIO 12: Slow blink (Core 1)
-  - LED on GPIO 14: Shared (mutex protected)
-  - Button on GPIO 18: Triggers event & flashes shared LED
-  - Button on GPIO 19: Resets counter
+  - LED on GPIO 2: Off by default, blinks after Button 1
+  - LED on GPIO 4: Off by default, blinks after Button 2
+  - LED on GPIO 5: Shared LED (blinks on button events)
+  - Button on GPIO 18: Blink shared LED, start Core 0 LED
+  - Button on GPIO 19: Blink shared LED, start Core 1 LED
 ```
 
 ### 3. Test the System
 
 **Visual Verification:**
 
-- LED on GPIO 13 blinks rapidly (200ms intervals) - Core 0 task
-- LED on GPIO 12 blinks slowly (500ms intervals) - Core 1 task
-- LED on GPIO 14 toggles periodically - shared resource
+- All LEDs are OFF at startup
+- Press Button 1: shared LED blinks 3 times, Core 0 LED starts blinking
+- Press Button 2: shared LED blinks 3 times, Core 1 LED starts blinking
 
 **Button Tests:**
 
-- Press Button 1 (GPIO 18): Triggers event, shared LED flashes 3 times
-- Press Button 2 (GPIO 19): Resets shared counter
+- Press Button 1 (GPIO 18): Shared LED flashes 3 times, Core 0 LED starts
+- Press Button 2 (GPIO 19): Shared LED flashes 3 times, Core 1 LED starts
 
 ---
 
@@ -191,7 +191,7 @@ System Status:
 │                         CORE 0                              │
 │  ┌──────────────┐              ┌──────────────┐            │
 │  │ Blink Task   │──Toggle──────│ Shared LED   │◄─┐         │
-│  │  (GPIO 13)   │    (Mutex)   │  (GPIO 14)   │  │         │
+│  │  (GPIO 2)    │    (Mutex)   │  (GPIO 5)    │  │         │
 │  └──────────────┘              └──────────────┘  │         │
 │         │                              ▲          │         │
 │         │                              │ Mutex    │         │
@@ -208,7 +208,7 @@ System Status:
 │                         CORE 1                   │         │
 │  ┌──────────────┐              ┌────────────┐   │         │
 │  │ Blink Task   │──Signal────► │  Semaphore │   │         │
-│  │  (GPIO 12)   │              │   (Sync)   │   │         │
+│  │  (GPIO 4)    │              │   (Sync)   │   │         │
 │  └──────────────┘              └──────┬─────┘   │         │
 │         │                             │          │         │
 │         └────────Increment────────────┤          │         │
@@ -225,7 +225,7 @@ System Status:
                     │  ┌─────────────────────────────┐      │
                     │  │ • Process button events     │      │
                     │  │ • Flash shared LED (Button1)│      │
-                    │  │ • Reset counter (Button 2)  │      │
+                    │  │ • Switch active LED (Button2)│     │
                     │  └─────────────────────────────┘      │
                     └────────────────────────────────────────┘
                                     │
@@ -254,9 +254,9 @@ System Status:
 
 **Expected Results:**
 
-- GPIO 13 blinks at 200ms (fast)
-- GPIO 12 blinks at 500ms (slow)
-- Both patterns run simultaneously without interference
+- LEDs remain off until a button is pressed
+- Button 1 starts Core 0 LED blinking
+- Button 2 switches blinking to Core 1 LED
 
 ---
 
@@ -281,8 +281,8 @@ Shared Counter: 42
 ==================================
 ```
 
-- Shared LED (GPIO 14) flashes 3 times
-- Button event detected by Core 0
+- Shared LED (GPIO 5) flashes 3 times
+- Core 0 LED (GPIO 2) starts blinking
 - Event processed by EventProcessor (may run on Core 1)
 
 ---

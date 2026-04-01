@@ -13,9 +13,9 @@ Get your ESP32 dual-core system running in minutes!
 ```
 ESP32          Components
 ═══════════════════════════════════════
-GPIO 13 ───[220Ω]───LED1(+)───GND
-GPIO 12 ───[220Ω]───LED2(+)───GND
-GPIO 14 ───[220Ω]───LED3(+)───GND
+GPIO 2  ───[220Ω]───LED1(+)───GND
+GPIO 4  ───[220Ω]───LED2(+)───GND
+GPIO 5  ───[220Ω]───LED3(+)───GND
 GPIO 18 ───BUTTON1───GND
 GPIO 19 ───BUTTON2───GND
 ```
@@ -79,11 +79,11 @@ CPU Configuration:
 
 ### Visual Check
 
-You should immediately see:
+You should see:
 
-- ✅ **LED 1 (GPIO 13)**: Fast blinking (200ms on/off)
-- ✅ **LED 2 (GPIO 12)**: Slow blinking (500ms on/off)
-- ✅ **LED 3 (GPIO 14)**: Occasional toggle (shared resource)
+- ✅ All LEDs OFF at startup
+- ✅ Press Button 1: Shared LED blinks 3 times, LED 1 (GPIO 2) starts blinking
+- ✅ Press Button 2: Shared LED blinks 3 times, LED 1 stops and LED 2 (GPIO 4) starts blinking
 
 ---
 
@@ -96,6 +96,7 @@ You should immediately see:
 **Result:**
 
 - Shared LED flashes 3 times rapidly
+- LED 1 (GPIO 2) starts blinking
 - Serial Monitor shows:
 
 ```
@@ -114,13 +115,8 @@ Processed by Core: 1
 
 **Result:**
 
-- Counter resets to 0
-- Serial Monitor shows:
-
-```
-[CORE 1] Button 2 event sent to queue
-[EVENT] Counter reset to 0
-```
+- Shared LED flashes 3 times rapidly
+- LED 1 (GPIO 2) stops, LED 2 (GPIO 4) starts blinking
 
 ### Test 3: Synchronized Monitoring
 

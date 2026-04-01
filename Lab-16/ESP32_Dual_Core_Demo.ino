@@ -3,9 +3,9 @@
  * Lab-16: FreeRTOS Multi-Core Task Management
  * 
  * Hardware Setup:
- * - LED 1 (Core 0): GPIO 13
- * - LED 2 (Core 1): GPIO 12
- * - LED 3 (Shared): GPIO 14
+ * - LED 1 (Core 0): GPIO 2
+ * - LED 2 (Core 1): GPIO 4
+ * - LED 3 (Shared): GPIO 5
  * - Button 1: GPIO 18 (with internal pull-up)
  * - Button 2: GPIO 19 (with internal pull-up)
  * 
@@ -21,9 +21,9 @@
 #include <Arduino.h>
 
 // Pin Definitions
-#define LED_CORE0    13    // LED controlled by Core 0
-#define LED_CORE1    12    // LED controlled by Core 1
-#define LED_SHARED   14    // LED shared between cores (mutex protected)
+#define LED_CORE0    2     // LED controlled by Core 0
+#define LED_CORE1    4     // LED controlled by Core 1
+#define LED_SHARED   5     // LED shared between cores (mutex protected)
 #define BUTTON1      18    // Button for Core 0
 #define BUTTON2      19    // Button for Core 1
 
@@ -67,6 +67,7 @@ bool lastButtonState2 = HIGH;
 // Statistics tracking
 volatile unsigned long core0TaskCount = 0;
 volatile unsigned long core1TaskCount = 0;
+volatile int activeBlinkMode = 0;  // 0 = all off, 1 = core 0 LED, 2 = core 1 LED
 
 //=============================================================================
 // UTILITY FUNCTIONS
@@ -104,6 +105,15 @@ void setSharedLED(bool state) {
   }
 }
 
+void setActiveBlinkMode(int mode) {
+  if (xSemaphoreTake(sharedLEDMutex, portMAX_DELAY) == pdTRUE) {
+    activeBlinkMode = mode;
+    digitalWrite(LED_CORE0, LOW);
+    digitalWrite(LED_CORE1, LOW);
+    xSemaphoreGive(sharedLEDMutex);
+  }
+}
+
 // Thread-safe counter increment
 void incrementCounter() {
   if (xSemaphoreTake(counterMutex, portMAX_DELAY) == pdTRUE) {
@@ -132,19 +142,19 @@ void Task_Core0_BlinkCode(void * parameter) {
   pinMode(LED_CORE0, OUTPUT);
   
   for(;;) {
-    // Fast blink pattern: 200ms ON, 200ms OFF
-    digitalWrite(LED_CORE0, HIGH);
-    vTaskDelay(200 / portTICK_PERIOD_MS);
-    
-    digitalWrite(LED_CORE0, LOW);
-    vTaskDelay(200 / portTICK_PERIOD_MS);
-    
-    core0TaskCount++;
-    
-    // Every 10 blinks, toggle shared LED
-    if (core0TaskCount % 10 == 0) {
-      setSharedLED(!sharedLEDState);
+    if (activeBlinkMode == 1) {
+      // Fast blink pattern: 200ms ON, 200ms OFF
+      digitalWrite(LED_CORE0, HIGH);
+      vTaskDelay(200 / portTICK_PERIOD_MS);
+      
+      digitalWrite(LED_CORE0, LOW);
+      vTaskDelay(200 / portTICK_PERIOD_MS);
+      
+      core0TaskCount++;
       incrementCounter();
+    } else {
+      digitalWrite(LED_CORE0, LOW);
+      vTaskDelay(50 / portTICK_PERIOD_MS);
     }
   }
 }
@@ -201,18 +211,23 @@ void Task_Core1_BlinkCode(void * parameter) {
   pinMode(LED_CORE1, OUTPUT);
   
   for(;;) {
-    // Slow blink pattern: 500ms ON, 500ms OFF
-    digitalWrite(LED_CORE1, HIGH);
-    vTaskDelay(500 / portTICK_PERIOD_MS);
-    
-    digitalWrite(LED_CORE1, LOW);
-    vTaskDelay(500 / portTICK_PERIOD_MS);
-    
-    core1TaskCount++;
-    
-    // Every 5 blinks, signal synchronization
-    if (core1TaskCount % 5 == 0) {
-      xSemaphoreGive(syncSemaphore);
+    if (activeBlinkMode == 2) {
+      // Slow blink pattern: 500ms ON, 500ms OFF
+      digitalWrite(LED_CORE1, HIGH);
+      vTaskDelay(500 / portTICK_PERIOD_MS);
+      
+      digitalWrite(LED_CORE1, LOW);
+      vTaskDelay(500 / portTICK_PERIOD_MS);
+      
+      core1TaskCount++;
+      
+      // Every 5 blinks, signal synchronization
+      if (core1TaskCount % 5 == 0) {
+        xSemaphoreGive(syncSemaphore);
+      }
+    } else {
+      digitalWrite(LED_CORE1, LOW);
+      vTaskDelay(50 / portTICK_PERIOD_MS);
     }
   }
 }
@@ -290,20 +305,23 @@ void Task_EventProcessorCode(void * parameter) {
       
       // Perform action based on button
       if (event.buttonNumber == 1) {
-        // Button 1: Quick flash shared LED
+        // Button 1: Quick flash shared LED, then enable Core 0 LED
         for(int i = 0; i < 3; i++) {
           setSharedLED(true);
           vTaskDelay(100 / portTICK_PERIOD_MS);
           setSharedLED(false);
           vTaskDelay(100 / portTICK_PERIOD_MS);
         }
+        setActiveBlinkMode(1);
       } else if (event.buttonNumber == 2) {
-        // Button 2: Reset counter
-        if (xSemaphoreTake(counterMutex, portMAX_DELAY) == pdTRUE) {
-          sharedCounter = 0;
-          xSemaphoreGive(counterMutex);
+        // Button 2: Quick flash shared LED, then enable Core 1 LED
+        for(int i = 0; i < 3; i++) {
+          setSharedLED(true);
+          vTaskDelay(100 / portTICK_PERIOD_MS);
+          setSharedLED(false);
+          vTaskDelay(100 / portTICK_PERIOD_MS);
         }
-        safePrintln("[EVENT] Counter reset to 0");
+        setActiveBlinkMode(2);
       }
     }
   }
@@ -464,11 +482,11 @@ void setup() {
   Serial.println("✓ All tasks created and started!");
   Serial.println();
   Serial.println("System Status:");
-  Serial.println("  - LED on GPIO 13: Fast blink (Core 0)");
-  Serial.println("  - LED on GPIO 12: Slow blink (Core 1)");
-  Serial.println("  - LED on GPIO 14: Shared (mutex protected)");
-  Serial.println("  - Button on GPIO 18: Triggers event & flashes shared LED");
-  Serial.println("  - Button on GPIO 19: Resets counter");
+  Serial.println("  - LED on GPIO 2: Core 0 LED (press Button 1 to start)");
+  Serial.println("  - LED on GPIO 4: Core 1 LED (press Button 2 to start)");
+  Serial.println("  - LED on GPIO 5: Shared LED (blinks on button events)");
+  Serial.println("  - Button on GPIO 18: Enables Core 0 LED");
+  Serial.println("  - Button on GPIO 19: Enables Core 1 LED");
   Serial.println();
   Serial.println("Press buttons to see inter-task communication!");
   Serial.println("═══════════════════════════════════════════\n");

@@ -48,20 +48,14 @@ This lab demonstrates how to implement and use **Over-The-Air (OTA)** firmware u
 | Component               | Quantity | Purpose              |
 | ----------------------- | -------- | -------------------- |
 | ESP32 Development Board | 1        | Main controller      |
-| LED                     | 1        | Status indicator     |
-| 220Ω Resistor           | 1        | LED current limiting |
-| Breadboard              | 1        | Circuit assembly     |
-| Jumper Wires            | Few      | Connections          |
+| USB Cable               | 1        | Power and USB upload |
 
 ### Pin Configuration
 
 ```
 ESP32 Pin    →    Component
 ─────────────────────────────
-GPIO 12       →   LED + (via 220Ω resistor)
-GND           →   LED -
-
-Built-in LED  →   GPIO 2 (Heartbeat indicator)
+Built-in LED  →   GPIO 2
 ```
 
 ---
@@ -85,10 +79,7 @@ No additional library installation required! ✅
 
 ### Step 1: Hardware Connection
 
-```
-ESP32 GPIO 12 → [220Ω Resistor] → LED + (Anode)
-                                   LED - (Cathode) → GND
-```
+No external LED required. The sketch uses the ESP32 built-in LED on GPIO 2.
 
 ### Step 2: Configure WiFi
 
