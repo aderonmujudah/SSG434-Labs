@@ -167,7 +167,7 @@ void printWakeupReason() {
       button1WakeupCount++;
       break;
       
-    case ESP_SLEEP_WAKEUP_EXT1:
+    case ESP_SLEEP_WAKEUP_EXT1: {
       Serial.println("🔘 External signal (EXT1) - Multiple pins");
       // Check which button woke us up
       uint64_t wakeup_pin_mask = esp_sleep_get_ext1_wakeup_status();
@@ -180,6 +180,7 @@ void printWakeupReason() {
         button2WakeupCount++;
       }
       break;
+    }
       
     case ESP_SLEEP_WAKEUP_TIMER:
       Serial.println("⏰ Timer wakeup");
